@@ -1,0 +1,13 @@
+<library path="irob_holonomic_plugins">
+	<class type="irob_holonomic_plugins::Omni3" base_class_type="irob_holonomic_base::irob_holonomic">
+		<description>3 Wheels omni.</description>
+	</class>
+	
+	<class type="irob_holonomic_plugins::Omni4" base_class_type="irob_holonomic_base::irob_holonomic">
+		<description>4 Wheels omni.</description>
+	</class>
+	
+	<class type="irob_holonomic_plugins::Meca4" base_class_type="irob_holonomic_base::irob_holonomic">
+		<description>4 Wheels mecanum.</description>
+	</class>
+</library>

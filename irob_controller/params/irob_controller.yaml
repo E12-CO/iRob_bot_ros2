@@ -1,0 +1,10 @@
+iRob_controller:
+  ros__parameters:
+    robot_frame_id: "base_link"
+    odom_frame_id: "odom"
+    irob_holo_type: 2
+    robot_width: 0.53
+    robot_length: 0.475
+    wheel_radius: 0.05
+    gear_ratio: 27.00
+    publish_tf: true
