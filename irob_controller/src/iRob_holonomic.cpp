@@ -175,8 +175,8 @@ namespace irob_holonomic_plugins{
 				
 				wheel_ptr_t->v1 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LF
 				wheel_ptr_t->v2 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LB
-				wheel_ptr_t->v3 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RB
-				wheel_ptr_t->v4 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RF
+				wheel_ptr_t->v3 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RB
+				wheel_ptr_t->v4 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RF
 				
 				cmd_ptr_t->vel_x =
 					(	wheel_ptr_t->v1 +	
@@ -230,7 +230,7 @@ namespace irob_holonomic_plugins{
 				;
 				
 				wheel_ptr_t->v3 = // RB
-					(
+					-(
 					cmd_ptr_t->vel_x	-
 					cmd_ptr_t->vel_y	+
 					(cmd_ptr_t->vel_az	* irob_param_t.robot_length)
@@ -238,7 +238,7 @@ namespace irob_holonomic_plugins{
 				;
 			
 				wheel_ptr_t->v4 = // RF
-					(
+					-(
 					cmd_ptr_t->vel_x	+
 					cmd_ptr_t->vel_y	+
 					(cmd_ptr_t->vel_az	* irob_param_t.robot_length)
@@ -314,8 +314,8 @@ namespace irob_holonomic_plugins{
 				
 				wheel_ptr_t->v1 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LF
 				wheel_ptr_t->v2 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LB
-				wheel_ptr_t->v3 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RB
-				wheel_ptr_t->v4 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RF
+				wheel_ptr_t->v3 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RB
+				wheel_ptr_t->v4 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RF
 				
 				cmd_ptr_t->vel_x =
 					(	wheel_ptr_t->v1 +	
