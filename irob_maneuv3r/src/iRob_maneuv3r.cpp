@@ -18,13 +18,15 @@
 #include <geometry_msgs/msg/pose.hpp>
 
 // tf2 lib
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.hpp>
 #include <tf2/transform_datatypes.h>
-#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
 #include <tf2/LinearMath/Vector3.h>
+#include "tf2/utils.h"
 
 // Sensor messages
 #include "sensor_msgs/msg/magnetic_field.hpp"
@@ -41,10 +43,6 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	
 	public:
 	
-	// ROS fram of reference names
-	std::string map_frame_id;
-	std::string robot_frame_id;
-	
 	// Pub
 	// cmd_vel twist publisher
 	rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr 		pubMotion;
@@ -56,7 +54,9 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	
 	// Sub
 	// Pose stamped command
-	rclcpp::Subscription<geometry::msgs::PoseStamped>::SharedPtr	subPoseStamped;
+	rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr	subPoseStamped;
+	// buffer for Setpoint message (PoseStamped stripped down to Stamped)0
+	geometry_msgs::msg::Pose poseSetpoint;
 	
 	// iRob mode message
 	rclcpp::Subscription<irob_msgs::msg::IrobCmdMsg>::SharedPtr		subiRobCmd;
@@ -71,24 +71,33 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
 	std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
 	
+	// ROS fram of reference names
+	std::string map_frame_id;
+	std::string robot_frame_id;
+	std::string odom_frame_id;
+	
+	// Use odom transform instead of map transform
+	bool use_odom_tf_only = false;
+	
+	// Goal tolerance 
+	double walk_goal_tolerance;
+	double rotate_goal_tolerance;
 	
 	uint8_t loop_fsm = 0;
 	
-	// buffer for Setpoint message (PoseStamped stripped down to Stamped)0
-	geometry::msgs::Pose poseSetpoint;
 	
 	double cVel, cHeading, cVelAz;
 	
-	// buffer fot transform stamped to be used as position feedback
+	// buffer for transform stamped to be used as position feedback
 	geometry_msgs::msg::TransformStamped poseFeedback;
 	
-	double rRoll, rPitch, rYaw;
+	double spYaw, fYaw;
 	
 	double diff_x, diff_y;
 	
+	// PID for walk
 	double eDist;
 	
-	// PID for walk
 	double walkKp;
 	double walkKi;
 	double walkKd;
@@ -97,17 +106,22 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	double walkIntg;
 	double walkDiff;
 
-	double preveDist;
+	double prevDist;
 	
 	// PID for rotate
+	double eOrient;
+	
 	double rotateKp;
 	double rotateKi;
 	double rotateKd;
 	double rotateMax;
 	
 	double rotateIntg;
+	double rotateDiff;
 	
-	irob_rbc_if() : Node("iRob_Interface"){
+	double prevOrient;
+	
+	irob_rbc_maneuv3r() : Node("iRob_maneuv3r"){
 		RCLCPP_INFO(
 			this->get_logger(), 
 			"Robot Club Engineering KMITL : Starting iRob maneuv3r..."
@@ -119,8 +133,37 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		declare_parameter("robot_frame_id", "base_link");
 		get_parameter("robot_frame_id", robot_frame_id);
 		
-		declare_parameter();
-		get_parameter();
+		declare_parameter("odom_frame_id", "odom");
+		get_parameter("odom_frame_id", odom_frame_id);
+		
+		declare_parameter("use_odom_tf_only", false);
+		get_parameter("use_odom_tf_only", use_odom_tf_only);
+		
+		declare_parameter("walk_kp", 1.0);
+		get_parameter("walk_kp", walkKp);
+		declare_parameter("walk_ki", 0.0);
+		get_parameter("walk_ki", walkKi);
+		declare_parameter("walk_kd", 0.0);
+		get_parameter("walk_kd", walkKd);
+		declare_parameter("walk_max_vel", 1.0);
+		get_parameter("walk_max_vel", walkMax);
+		declare_parameter("walk_goal_tolerance", 0.01);
+		get_parameter("walk_goal_tolerance", walk_goal_tolerance);
+		
+		declare_parameter("rotate_kp", 1.0);
+		get_parameter("rotate_kp", rotateKp);
+		declare_parameter("rotate_ki", 0.0);
+		get_parameter("rotate_ki", rotateKi);
+		declare_parameter("rotate_kd", 0.0);
+		get_parameter("rotate_kd", rotateKd);
+		declare_parameter("rotate_max_vel", 3.1415);
+		get_parameter("rotate_max_vel", rotateMax);
+		declare_parameter("rotate_goal_tolerance", 0.174533);// Default 10 degree
+		get_parameter("rotate_goal_tolerance", rotate_goal_tolerance);
+		
+		if(use_odom_tf_only == true)
+			map_frame_id = odom_frame_id;
+		
 		
 		
 		tf_buffer_ =
@@ -133,7 +176,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		pubiRobStat = create_publisher<irob_msgs::msg::IrobCmdMsg>("/irob_maneuv3r_status", 10);
 		
 		subPoseStamped = 
-			create_subscription<geometry::msgs::PoseStamped>(
+			create_subscription<geometry_msgs::msg::PoseStamped>(
 				"/irob_pose_cmd",
 				10,
 				std::bind(
@@ -164,17 +207,17 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	
 	}
 	
-	void irob_pose_callback(const geometry::msgs::PoseStamped::SharedPtr pose_command){
-		poseSetpoint.position.x 	= pose_command->position.x;
-		poseSetpoint.position.y 	= pose_command->position.y;
-		poseSetpoint.orientation.x 	= pose_command->orientation.x;
-		poseSetpoint.orientation.y 	= pose_command->orientation.y;
-		poseSetpoint.orientation.z 	= pose_command->orientation.z;
-		poseSetpoint.orientation.w 	= pose_command->orientation.w;
+	void irob_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_command){
+		poseSetpoint.position.x 	= pose_command->pose.position.x;
+		poseSetpoint.position.y 	= pose_command->pose.position.y;
+		poseSetpoint.orientation.x 	= pose_command->pose.orientation.x;
+		poseSetpoint.orientation.y 	= pose_command->pose.orientation.y;
+		poseSetpoint.orientation.z 	= pose_command->pose.orientation.z;
+		poseSetpoint.orientation.w 	= pose_command->pose.orientation.w;
 	}
 	
-	void irob_cmd_callback(const irob_msgs::msg::IrobCMdMsg::SharedPtr irob_command){
-		irob_cmd = irob_command->irob_cmd;
+	void irob_cmd_callback(const irob_msgs::msg::IrobCmdMsg::SharedPtr irob_command){
+		irob_cmd = irob_command->irobcmd;
 		if(irob_cmd == "stop"){
 			loop_fsm = 0;
 		}
@@ -188,6 +231,8 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				twist.linear.x = 0.0;
 				twist.linear.y = 0.0;
 				twist.angular.z = 0.0;
+				walkIntg = 0.0;
+				rotateIntg = 0.0;
 				if(irob_cmd == "run")
 					loop_fsm = 1;
 			}
@@ -197,10 +242,11 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 			{
 				// Get current robot position by looking up transform
 				try {
-				  poseFeedback = 
-					tf_buffer_->lookupTransform(
-						robot_frame_id, map_frame_id,
-						tf2::TimePointZero
+						
+					poseFeedback = 
+						tf_buffer_->lookupTransform(
+							robot_frame_id, map_frame_id,
+							tf2::TimePointZero
 						);
 				} catch (const tf2::TransformException & ex) {
 				  RCLCPP_INFO(
@@ -215,14 +261,20 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				
 				// Convert Quaternion to RPY to get Yaw (robot orientation)
 				tf2::Quaternion quat_tf;
-				geometry_msgs::msg::Quaternion quat_msg = poseFeedback.transform.rotation;
-				tf2::fromMsg(quat_msg, quat_tf);
-				tf2::Matrix3x3 m(quat_tf);
+				//geometry_msgs::msg::Quaternion quat_msg = poseFeedback.transform.rotation;
+				//tf2::fromMsg(quat_msg, quat_tf);
+				tf2::fromMsg(poseFeedback.transform.rotation, quat_tf);
+				//tf2::Matrix3x3 m(quat_tf);
+				fYaw = tf2::getYaw(quat_tf);
+				/*
 				m.getRPY(
-					rRoll,
-					rPitch,
-					rYaw	// <---- We only use this
-				);
+					fRoll,
+					fPitch,
+					fYaw	// <---- We only use this
+				);*/
+				
+				tf2::fromMsg(poseSetpoint.orientation, quat_tf);
+				spYaw = tf2::getYaw(quat_tf);
 				
 				// Calculate Euclidean distance
 				// Dx and Dy
@@ -242,17 +294,61 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				// Finally calculate the Euclidean distance
 				eDist = sqrt(diff_x + diff_y);
 				
+				// Walk PID controller 
+				
 				walkIntg += eDist * walkKi;
 				
-				walkDiff = (eDist - preveDist) * walkKd;
-				preveDist = eDist;
+				walkDiff = (eDist - prevDist) * walkKd;
+				prevDist = eDist;
 				
 				cVel = 
 					(eDist * walkKp) 	+
 					walkIntg			+
 					walkDiff			;
-					
-					
+				
+				// Linear velocity envelope
+				if(cVel > walkMax)
+					cVel = walkMax;
+				if(cVel < -walkMax)
+					cVel = -walkMax;
+				
+				// Rotate PID controller
+				eOrient = 0 - fYaw;			// TODO : GET SETPOINT IN RPY 
+				
+				rotateIntg += eOrient * rotateKi;
+				
+				rotateDiff = (eOrient - prevOrient) * rotateKd;
+				prevOrient = eOrient;
+				
+				cVelAz = 
+					(eOrient * rotateKp)+
+					rotateIntg			+
+					rotateDiff			;
+				
+				
+				// Angular velocity envelope
+				if(cVelAz > rotateMax)
+					cVelAz = rotateMax;
+				if(cVelAz < -rotateMax)
+					cVelAz = -rotateMax;
+				
+				// Goal checker 
+				if(abs(cVel) <= walk_goal_tolerance){
+					cVel = 0.0;
+					walkIntg = 0.0;
+				}
+				
+				if(abs(cVelAz) <= rotate_goal_tolerance){
+					cVelAz = 0.0;
+					rotateIntg = 0.0;
+				}
+				
+				if(
+					(abs(cVel) <= walk_goal_tolerance) &&
+					(abs(cVelAz) <= rotate_goal_tolerance)
+				){
+					loop_fsm = 0;
+				}
 				
 				maneuv3r_update_Cmdvel(
 					cVel,
@@ -264,7 +360,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		}
 		
 		
-		twistout->publish(twist);
+		pubMotion->publish(twist);
 	}
 	
 	private:

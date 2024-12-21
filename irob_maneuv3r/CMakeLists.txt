@@ -13,9 +13,12 @@ find_package(rclcpp_components REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(irob_msgs REQUIRED)
 
 set(iRob_dependencies
 	rclcpp
@@ -23,6 +26,8 @@ set(iRob_dependencies
 	geometry_msgs
 	tf2
 	tf2_ros
+	tf2_geometry_msgs
+	tf2_sensor_msgs
 	nav_msgs
 	sensor_msgs
 	irob_msgs
@@ -30,7 +35,7 @@ set(iRob_dependencies
 )
 
 add_executable(iRob_maneuv3r
-	src/iRob_interface.cpp
+	src/iRob_maneuv3r.cpp
 )
 
 target_link_libraries(
