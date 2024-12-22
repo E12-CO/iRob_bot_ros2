@@ -7,10 +7,10 @@
 #include <stdint.h>
 
 // Math constants
-#define RPM_TO_RAD_S  	0.1047f 	// 1 rpm == 0.1047 rad/s 
-#define RAD_S_TO_RPM	9.549297f 	// 1 rad/s ~= 0.54 RPM
-#define SINE_120 		0.866025f 	// Sine(120 degree) in rad unit
-#define F2_SQRT3      	1.1547f 	// 2/sqrt(3)
+#define RPM_TO_RAD_S  	0.104778 	// 1 rpm == 0.1047 rad/s 
+#define RAD_S_TO_RPM	9.549297	// 1 rad/s ~= 0.54 RPM
+#define SINE_120 		0.866025 	// Sine(120 degree) in rad unit
+#define F2_SQRT3      	1.1547	 	// 2/sqrt(3)
 
 namespace irob_holonomic_plugins{
 	
