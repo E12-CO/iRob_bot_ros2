@@ -20,7 +20,7 @@ def generate_launch_description():
 
     irob_controller_instant = launch_ros.actions.Node(
         package=pkg_name,
-        executable='irob_controller',
+        executable='iRob_controller',
         output='screen',
         parameters=[irob_controller_param_dir]
     )
