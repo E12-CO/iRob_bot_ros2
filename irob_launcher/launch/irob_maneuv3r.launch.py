@@ -22,6 +22,7 @@ def generate_launch_description():
         package=pkg_name,
         executable='iRob_maneuv3r',
         output='screen',
+        remappings=[('cmd_vel_irob_auto', 'cmd_vel')],
         parameters=[irob_maneuv3r_param_dir]
     )
     
