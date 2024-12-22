@@ -267,7 +267,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 					loop_fsm = 0;
 					irob_cmd = "";
 					
-				  return;
+				  break;
 				}
 				
 				// Convert Quaternion to RPY to get Yaw (robot orientation)
