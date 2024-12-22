@@ -177,7 +177,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		
 		subPoseStamped = 
 			create_subscription<geometry_msgs::msg::PoseStamped>(
-				"/irob_pose_cmd",
+				"/goal_pose",
 				10,
 				std::bind(
 					&irob_rbc_maneuv3r::irob_pose_callback,
@@ -214,6 +214,11 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		poseSetpoint.orientation.y 	= pose_command->pose.orientation.y;
 		poseSetpoint.orientation.z 	= pose_command->pose.orientation.z;
 		poseSetpoint.orientation.w 	= pose_command->pose.orientation.w;
+		RCLCPP_INFO(
+			this->get_logger(), 
+				"Received pose!"
+				);
+		irob_cmd = "run";
 	}
 	
 	void irob_cmd_callback(const irob_msgs::msg::IrobCmdMsg::SharedPtr irob_command){
@@ -233,8 +238,9 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				twist.angular.z = 0.0;
 				walkIntg = 0.0;
 				rotateIntg = 0.0;
-				if(irob_cmd == "run")
+				if(irob_cmd == "run"){
 					loop_fsm = 1;
+				}
 			}
 			break;
 			
@@ -248,31 +254,28 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 							robot_frame_id, map_frame_id,
 							tf2::TimePointZero
 						);
+						
 				} catch (const tf2::TransformException & ex) {
-				  RCLCPP_INFO(
-					this->get_logger(), 
-					"Could not transform %s to %s: %s",
-					robot_frame_id.c_str(), 
-					map_frame_id.c_str(), 
-					ex.what()
+					RCLCPP_INFO(
+						this->get_logger(), 
+						"Could not transform %s to %s: %s",
+						robot_frame_id.c_str(), 
+						map_frame_id.c_str(), 
+						ex.what()
 					);
+					
+					loop_fsm = 0;
+					irob_cmd = "";
+					
 				  return;
 				}
 				
 				// Convert Quaternion to RPY to get Yaw (robot orientation)
 				tf2::Quaternion quat_tf;
-				//geometry_msgs::msg::Quaternion quat_msg = poseFeedback.transform.rotation;
-				//tf2::fromMsg(quat_msg, quat_tf);
+				// Orientation from Pose feedback 
 				tf2::fromMsg(poseFeedback.transform.rotation, quat_tf);
-				//tf2::Matrix3x3 m(quat_tf);
 				fYaw = tf2::getYaw(quat_tf);
-				/*
-				m.getRPY(
-					fRoll,
-					fPitch,
-					fYaw	// <---- We only use this
-				);*/
-				
+				// Orientation from Setpoint 
 				tf2::fromMsg(poseSetpoint.orientation, quat_tf);
 				spYaw = tf2::getYaw(quat_tf);
 				
@@ -313,7 +316,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 					cVel = -walkMax;
 				
 				// Rotate PID controller
-				eOrient = 0 - fYaw;			// TODO : GET SETPOINT IN RPY 
+				eOrient = spYaw - fYaw;			
 				
 				rotateIntg += eOrient * rotateKi;
 				
@@ -348,6 +351,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 					(abs(cVelAz) <= rotate_goal_tolerance)
 				){
 					loop_fsm = 0;
+					irob_cmd = "";
 				}
 				
 				maneuv3r_update_Cmdvel(
