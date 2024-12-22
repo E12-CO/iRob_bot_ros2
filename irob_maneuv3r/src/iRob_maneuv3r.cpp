@@ -36,7 +36,7 @@
 #include "irob_msgs/msg/irob_cmd_msg.hpp"
 
 // Define Feedback Loop time 
-#define LOOP_TIME_MIL   20 // 20 millisec -> 50Hz
+#define LOOP_TIME_MIL   50 // 20 millisec -> 50Hz
 #define LOOP_TIME_SEC	LOOP_TIME_MIL/1000 // Loop time in second
 
 class irob_rbc_maneuv3r : public rclcpp::Node{
@@ -91,6 +91,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	// buffer for transform stamped to be used as position feedback
 	geometry_msgs::msg::TransformStamped poseFeedback;
 	
+	tf2::Quaternion quat_tf;
 	double spYaw, fYaw;
 	
 	double diff_x, diff_y;
@@ -164,8 +165,6 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		if(use_odom_tf_only == true)
 			map_frame_id = odom_frame_id;
 		
-		
-		
 		tf_buffer_ =
 			std::make_unique<tf2_ros::Buffer>(this->get_clock());
 		tf_listener_ =
@@ -214,9 +213,20 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		poseSetpoint.orientation.y 	= pose_command->pose.orientation.y;
 		poseSetpoint.orientation.z 	= pose_command->pose.orientation.z;
 		poseSetpoint.orientation.w 	= pose_command->pose.orientation.w;
+		
+		// Orientation from Setpoint 
+		tf2::fromMsg(poseSetpoint.orientation, quat_tf);
+		spYaw = tf2::getYaw(quat_tf);
+		// if(spYaw < 0.0)
+			// spYaw += 6.28319;
+		
+		
 		RCLCPP_INFO(
 			this->get_logger(), 
-				"Received pose!"
+				"Received goal pose! X: %f Y: %f Orientation: %f",
+				poseSetpoint.position.x,
+				poseSetpoint.position.y,
+				spYaw
 				);
 		irob_cmd = "run";
 	}
@@ -251,8 +261,9 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 						
 					poseFeedback = 
 						tf_buffer_->lookupTransform(
-							robot_frame_id, map_frame_id,
-							tf2::TimePointZero
+							map_frame_id, robot_frame_id, 
+							tf2::TimePointZero,
+							tf2::Duration(1)
 						);
 						
 				} catch (const tf2::TransformException & ex) {
@@ -271,14 +282,19 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				}
 				
 				// Convert Quaternion to RPY to get Yaw (robot orientation)
-				tf2::Quaternion quat_tf;
+				
 				// Orientation from Pose feedback 
 				tf2::fromMsg(poseFeedback.transform.rotation, quat_tf);
 				fYaw = tf2::getYaw(quat_tf);
-				// Orientation from Setpoint 
-				tf2::fromMsg(poseSetpoint.orientation, quat_tf);
-				spYaw = tf2::getYaw(quat_tf);
+				// if(fYaw < 0.0)
+					// fYaw += 6.28319;
 				
+				
+				RCLCPP_INFO(
+					this->get_logger(),
+					"Current Angle %f",
+					fYaw
+				);
 				// Calculate Euclidean distance
 				// Dx and Dy
 				diff_x = poseSetpoint.position.x - poseFeedback.transform.translation.x;
@@ -335,34 +351,48 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				if(cVelAz < -rotateMax)
 					cVelAz = -rotateMax;
 				
+				// 
+				RCLCPP_INFO(
+					this->get_logger(),
+					"Distance to goal %f | Heading %f | Angle to goal %f",
+					eDist, cHeading ,eOrient
+				);
+				
 				// Goal checker 
-				if(abs(cVel) <= walk_goal_tolerance){
+				if(abs(eDist) <= walk_goal_tolerance){
 					cVel = 0.0;
 					walkIntg = 0.0;
 				}
 				
-				if(abs(cVelAz) <= rotate_goal_tolerance){
+				if(abs(eOrient) <= rotate_goal_tolerance){
 					cVelAz = 0.0;
 					rotateIntg = 0.0;
 				}
 				
 				if(
-					(abs(cVel) <= walk_goal_tolerance) &&
-					(abs(cVelAz) <= rotate_goal_tolerance)
+					(abs(eDist) <= walk_goal_tolerance) &&
+					(abs(eOrient) <= rotate_goal_tolerance)
 				){
 					loop_fsm = 0;
+					cVel = 0.0;
+					cVelAz = 0.0;
 					irob_cmd = "";
+					RCLCPP_INFO(
+						this->get_logger(),
+						"Goal success!"
+					);
 				}
 				
-				maneuv3r_update_Cmdvel(
-					cVel,
-					cHeading,
-					cVelAz
-					);
+				
 			}
 			break;
 		}
 		
+		maneuv3r_update_Cmdvel(
+			cVel,
+			cHeading - fYaw,
+			cVelAz
+			);
 		
 		pubMotion->publish(twist);
 	}
@@ -371,8 +401,8 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	
 	double atan2pi(double y, double x) {
 	  double at = atan2(y, x);
-	  if (at < 0.0)
-		at += 6.28319;
+	  // if (at < 0.0)
+		// at += 6.28319;
 	  return at;
 	}
 	
