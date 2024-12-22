@@ -54,23 +54,23 @@ ament_export_include_directories(
 )
 
 # iRob-Controller node
-add_executable(irob_controller src/iRob_controller.cpp)
+add_executable(iRob_controller src/iRob_controller.cpp)
 ament_target_dependencies(
-	irob_controller
+	iRob_controller
 	${irob_dependencies}
 )
 target_link_libraries(
-	irob_controller
+	iRob_controller
 	irob_holonomic_plugins
 )
 target_include_directories(
-	irob_controller PUBLIC
+	iRob_controller PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>
 )
 
 install(
-	TARGETS irob_controller irob_holonomic_plugins
+	TARGETS iRob_controller irob_holonomic_plugins
 	DESTINATION lib/${PROJECT_NAME}
 )
 
