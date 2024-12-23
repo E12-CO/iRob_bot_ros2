@@ -3,8 +3,8 @@ iRob_controller:
     robot_frame_id: "base_link"
     odom_frame_id: "odom"
     irob_holo_type: 2
-    robot_width: 0.53
-    robot_length: 0.475
+    robot_width: 0.251
+    robot_length: 0.20
     wheel_radius: 0.05
-    gear_ratio: 27.00
-    publish_tf: true
+    gear_ratio: 82.00
+    publish_tf: false
