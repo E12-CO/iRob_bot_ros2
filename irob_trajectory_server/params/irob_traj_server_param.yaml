@@ -1,0 +1,8 @@
+iRob_trajectory_server:
+  ros__parameters:
+    map_frame_id: "map"
+    robot_frame_id: "base_link"
+    odom_frame_id: "odom"
+    use_odom_tf_only: false
+    distance_update_threshold: 0.1      # 10 cm
+    distance_update_threshold: 0.174533 # 10 degree
