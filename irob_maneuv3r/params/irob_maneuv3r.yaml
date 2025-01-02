@@ -5,15 +5,16 @@ iRob_maneuv3r:
         robot_frame_id: "base_link"
         use_odom_tf_only: false
         
-        walk_kp: 0.8
-        walk_ki: 0.0065
+        walk_kp: 0.9
+        walk_ki: 0.0
         walk_kd: 0.0
-        walk_max_vel: 0.3
+        walk_max_vel: 2.0
+        walk_vel_filter: 0.08
         walk_goal_tolerance: 0.04
         
-        rotate_kp: 1.2
-        rotate_ki: 0.004
+        rotate_kp: 2.3
+        rotate_ki: 0.0
         rotate_kd: 0.0
-        rotate_max_vel: 0.9
-        rotate_goal_tolerance: 0.02
+        rotate_max_vel: 1.1
+        rotate_goal_tolerance: 0.035
         

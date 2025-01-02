@@ -82,13 +82,16 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	// Goal tolerance 
 	double walk_goal_tolerance;
 	double rotate_goal_tolerance;
+
+	// Velocity filter
+	double walk_vel_filter;
 	
 	uint8_t loop_fsm = 0;
-	
-	
+		
 	double cVel, cHeading, cVelAz;
+	double fVel;
 	
-	// buffer for transform stamped to be used as position feedback
+// buffer for transform stamped to be used as position feedback
 	geometry_msgs::msg::TransformStamped poseFeedback;
 	
 	tf2::Quaternion quat_tf;
@@ -148,6 +151,8 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		get_parameter("walk_kd", walkKd);
 		declare_parameter("walk_max_vel", 1.0);
 		get_parameter("walk_max_vel", walkMax);
+		declare_parameter("walk_vel_filter", 0.4);
+		get_parameter("walk_vel_filter", walk_vel_filter);
 		declare_parameter("walk_goal_tolerance", 0.01);
 		get_parameter("walk_goal_tolerance", walk_goal_tolerance);
 		
@@ -320,17 +325,18 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				walkDiff = (eDist - prevDist) * walkKd;
 				prevDist = eDist;
 				
-				cVel = 
+				cVel =
 					(eDist * walkKp) 	+
 					walkIntg			+
-					walkDiff			;
-				
+					walkDiff			; 
+
 				// Linear velocity envelope
 				if(cVel > walkMax)
 					cVel = walkMax;
 				if(cVel < -walkMax)
 					cVel = -walkMax;
-				
+
+				fVel = ((1 - walk_vel_filter) * fVel) + (walk_vel_filter * cVel);
 				// Rotate PID controller
 				eOrient = spYaw - fYaw;			
 				
@@ -360,7 +366,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				
 				// Goal checker 
 				if(abs(eDist) <= walk_goal_tolerance){
-					cVel = 0.0;
+					fVel = 0.0;
 					walkIntg = 0.0;
 				}
 				
@@ -374,7 +380,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 					(abs(eOrient) <= rotate_goal_tolerance)
 				){
 					loop_fsm = 0;
-					cVel = 0.0;
+					fVel = 0.0;
 					cVelAz = 0.0;
 					irob_cmd = "";
 					RCLCPP_INFO(
@@ -389,7 +395,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		}
 		
 		maneuv3r_update_Cmdvel(
-			cVel,
+			fVel,
 			cHeading - fYaw,
 			cVelAz
 			);
