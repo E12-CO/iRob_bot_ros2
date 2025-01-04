@@ -137,10 +137,11 @@ class irob_rbc_if : public rclcpp::Node{
 	// Used in wall timer callback
 	rclcpp::TimerBase::SharedPtr timer_;
 	
-	// ROS fram of reference names
+	// ROS frame of reference names
 	std::string robot_frame_id;
 	std::string odom_optical_frame_id;
-	
+	std::string imu_frame_id;
+
 	// Serial port name '/dev/blablabla'
 	std::string serial_port_;
 	
@@ -169,7 +170,10 @@ class irob_rbc_if : public rclcpp::Node{
 		
 		declare_parameter("mouse_odom_frame_id", "mouse_odom");
 		get_parameter("mouse_odom_frame_id", odom_optical_frame_id);
-		
+
+		declare_parameter("imu_frame_id", "imu_link");
+		get_parameter("imu_frame_id", imu_frame_id);
+
 		declare_parameter("mag_sensor_topic", "imu/mag");
 		get_parameter("mag_sensor_topic", magTopicName);
 		
@@ -439,7 +443,7 @@ class irob_rbc_if : public rclcpp::Node{
 		motorFBMsg.motor4 					= rbc_Packet_t.motorFeedBack.motor4_fb;
 		
 		// magnetometer sensor
-		magMsg.header.frame_id				= "imu_link";
+		magMsg.header.frame_id				= imu_frame_id;
 		magMsg.header.stamp 				= mouseOdomMsg.header.stamp;
 		magMsg.magnetic_field.x				= 
 			rbc_Packet_t.mag_x_raw * mag_to_tesla;
@@ -449,7 +453,7 @@ class irob_rbc_if : public rclcpp::Node{
 			rbc_Packet_t.mag_z_raw * mag_to_tesla;
 		
 		// Accel + Gyro sensor
-		imuMsg.header.frame_id				= "imu_link";
+		imuMsg.header.frame_id				= imu_frame_id;
 		imuMsg.header.stamp					= mouseOdomMsg.header.stamp;
 		// Accel
 		imuMsg.linear_acceleration_covariance = {0};
