@@ -339,9 +339,14 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				fVel = ((1 - walk_vel_filter) * fVel) + (walk_vel_filter * cVel);
 				// Rotate PID controller
 				eOrient = spYaw - fYaw;			
-				if(eOrient > 3.141593)
-					eOrient -= 3.141593;
-				
+				eOrient = spYaw - fYaw;			
+				if(abs(eOrient) > 3.141593){
+					if(eOrient < 0.0)
+						eOrient += 6.283185;
+					else
+						eOrient -= 6.283185;
+				}
+
 				rotateIntg += eOrient * rotateKi;
 				
 				rotateDiff = (eOrient - prevOrient) * rotateKd;
