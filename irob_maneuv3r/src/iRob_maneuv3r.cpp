@@ -36,7 +36,7 @@
 #include "irob_msgs/msg/irob_cmd_msg.hpp"
 
 // Define Feedback Loop time 
-#define LOOP_TIME_MIL   50 // 20 millisec -> 50Hz
+#define LOOP_TIME_MIL   50 // 50 millisec -> 20Hz
 #define LOOP_TIME_SEC	LOOP_TIME_MIL/1000 // Loop time in second
 
 class irob_rbc_maneuv3r : public rclcpp::Node{
@@ -339,6 +339,8 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				fVel = ((1 - walk_vel_filter) * fVel) + (walk_vel_filter * cVel);
 				// Rotate PID controller
 				eOrient = spYaw - fYaw;			
+				if(eOrient > 3.141593)
+					eOrient -= 3.141593;
 				
 				rotateIntg += eOrient * rotateKi;
 				
