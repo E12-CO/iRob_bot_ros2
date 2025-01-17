@@ -2,11 +2,10 @@ iRob_maneuv3r_tracker:
     ros__parameters:
         map_frame_id: "map"
         odom_frame_id: "odom_r1"
-        robot_frame_id: "base_link_r1"
+        robot_frame_id: "chassis_r1"
         use_odom_tf_only: false
 
-        lookahead_distance: 0.5
-        brake_ratio: 0.2
+        brake_ratio: 0.4
 
         walk_kp: 0.9
         walk_ki: 0.0
