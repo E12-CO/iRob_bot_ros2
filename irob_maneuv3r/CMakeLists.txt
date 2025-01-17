@@ -47,8 +47,21 @@ ament_target_dependencies(
 	${iRob_dependencies}
 )
 
+add_executable(iRob_maneuv3r_tracker
+	src/iRob_maneuv3r_tracker.cpp
+)
+
+target_link_libraries(
+	iRob_maneuv3r_tracker
+)
+
+ament_target_dependencies(
+	iRob_maneuv3r_tracker
+	${iRob_dependencies}
+)
+
 install(
-	TARGETS iRob_maneuv3r
+	TARGETS iRob_maneuv3r iRob_maneuv3r_tracker
 	DESTINATION lib/${PROJECT_NAME}
 )
 
