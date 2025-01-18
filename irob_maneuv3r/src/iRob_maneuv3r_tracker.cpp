@@ -425,13 +425,13 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 						);
 					
 					// 4. Scale velocity based on heading difference Pose heading and measured heading
-					del_heading = abs(next_heading - cHeading);
+					del_heading = abs(abs(next_heading) - abs(cHeading));
 					if(del_heading > 3.141593){
 						del_heading = 6.283185 - del_heading;	
 					}
 					
 					del_heading = del_heading/3.141593; // Scaling between 0 to 1
-					
+					del_heading = del_heading * del_heading;
 					RCLCPP_INFO(
 						this->get_logger(),
 						"Velocity brake scaling %f",
