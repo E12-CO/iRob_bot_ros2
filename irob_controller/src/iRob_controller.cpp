@@ -168,16 +168,16 @@ class irob_rbc_ctrl : public rclcpp::Node{
 		
 		// Odometry publisher
 		pubWheelOdom =
-			create_publisher<nav_msgs::msg::Odometry>("/wheel_odom", 10);
+			create_publisher<nav_msgs::msg::Odometry>("wheel_odom", 10);
 		
 		// Motor cmd publisher
 		pubMotorCmd = 
-			create_publisher<irob_msgs::msg::IrobMotorMsg>("/irob_motor_cmd", 1);
+			create_publisher<irob_msgs::msg::IrobMotorMsg>("irob_motor_cmd", 1);
 		
 		// Motor feedback subscriber
 		subMotorRPM = 
 			create_subscription<irob_msgs::msg::IrobMotorMsg>(
-				"/irob_motor_feedback", 
+				"irob_motor_feedback", 
 				10,
 				std::bind(
 					&irob_rbc_ctrl::irob_motorfeedback_callback,
@@ -188,7 +188,7 @@ class irob_rbc_ctrl : public rclcpp::Node{
 		// cmd_vel twist message subscriber	
 		subMotion = 
 			create_subscription<geometry_msgs::msg::Twist>(
-				"/cmd_vel",
+				"cmd_vel",
 				10,
 				std::bind(
 					&irob_rbc_ctrl::motion_callback, 

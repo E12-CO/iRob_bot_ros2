@@ -262,7 +262,7 @@ class irob_rbc_if : public rclcpp::Node{
 		// Odometry publisher
 	
 		pubOpticalOdom = 
-			create_publisher<nav_msgs::msg::Odometry>("/mouse_odom", 10);
+			create_publisher<nav_msgs::msg::Odometry>("mouse_odom", 10);
 			
 		// Sensor publishers
 		
@@ -274,12 +274,12 @@ class irob_rbc_if : public rclcpp::Node{
 		
 		// Motor feedback publisher
 		pubMotorRPM =
-			create_publisher<irob_msgs::msg::IrobMotorMsg>("/irob_motor_feedback", 10);
+			create_publisher<irob_msgs::msg::IrobMotorMsg>("irob_motor_feedback", 10);
 			
 		// Motor cmd subscriber
 		subMotorCmd = 
 			create_subscription<irob_msgs::msg::IrobMotorMsg>(
-				"/irob_motor_cmd",
+				"irob_motor_cmd",
 				10,
 				std::bind(
 					&irob_rbc_if::irob_motorcmd_callback,
