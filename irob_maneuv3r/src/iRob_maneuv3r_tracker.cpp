@@ -46,18 +46,19 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	
 	// Pub
 	// cmd_vel twist publisher
-	std::string twist_topic_name;
 	rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr 		pubMotion;
 	// buffer to publish twist message
 	geometry_msgs::msg::Twist twist;
 	
 	// iRob status message
-	std::string irob_status_topic_name;
 	rclcpp::Publisher<irob_msgs::msg::IrobCmdMsg>::SharedPtr		pubiRobStat;
+	
+	// Path publisher 
+	rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr			pubPath;
+	nav_msgs::msg::Path	pathTargetMsg;
 	
 	// Sub
 	// Path command (trajectory)
-	std::string path_topic_name;
 	rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr	subPath;
 	// buffer for Path message
 	nav_msgs::msg::Path	pathMsg;
@@ -66,7 +67,6 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	geometry_msgs::msg::Pose poseSetpoint;
 	
 	// iRob mode message
-	std::string irob_cmd_topic_name;
 	rclcpp::Subscription<irob_msgs::msg::IrobCmdMsg>::SharedPtr		subiRobCmd;
 	// Buffer for receive messages
 	std::string irob_cmd;
@@ -163,18 +163,6 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		declare_parameter("rotate_goal_tolerance", 0.174533);// Default 10 degree
 		get_parameter("rotate_goal_tolerance", rotate_goal_tolerance);
 		
-		declare_parameter("twist_topic_name", "cmd_vel_irob_auto");
-		get_parameter("twist_topic_name", twist_topic_name);
-		
-		declare_parameter("path_topic_name", "smooth_path");
-		get_parameter("path_topic_name", path_topic_name);
-		
-		declare_parameter("irob_status_topic_name", "irob_maneuv3r_status");
-		get_parameter("irob_status_topic_name", irob_status_topic_name);
-		
-		declare_parameter("irob_cmd_topic_name", "irob_cmd");
-		get_parameter("irob_cmd_topic_name", irob_cmd_topic_name);
-		
 		if(use_odom_tf_only == true)
 			map_frame_id = odom_frame_id;
 		
@@ -183,13 +171,25 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		tf_listener_ =
 			std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 		
-		pubMotion = create_publisher<geometry_msgs::msg::Twist>(twist_topic_name, 10);
+		pubMotion = create_publisher<geometry_msgs::msg::Twist>("cmd_vel_irob_auto", 10);
 		
-		pubiRobStat = create_publisher<irob_msgs::msg::IrobCmdMsg>(irob_status_topic_name, 10);
+		pubiRobStat = create_publisher<irob_msgs::msg::IrobCmdMsg>("irob_stat", 10);
+		
+		// Set up target path publisher
+		pubPath = 
+			create_publisher<nav_msgs::msg::Path>(
+				"irob_target_vect",
+				10
+			);
+			
+		// Set the header frane_id of the Path message
+		pathTargetMsg.header.frame_id = map_frame_id;	
+		pathTargetMsg.poses.resize(2);
+				
 		
 		subPath = 
 			create_subscription<nav_msgs::msg::Path>(
-				path_topic_name,
+				"irob_smooth_path",
 				10,
 				std::bind(
 					&irob_rbc_maneuv3r_tracker::irob_path_callback,
@@ -199,7 +199,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		
 		subiRobCmd =
 			create_subscription<irob_msgs::msg::IrobCmdMsg>(
-				irob_cmd_topic_name,
+				"irob_cmd",
 				10,
 				std::bind(
 					&irob_rbc_maneuv3r_tracker::irob_cmd_callback,
@@ -391,6 +391,11 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				if(irob_getPose() < 0)
 					break;
 				
+				pathTargetMsg.poses[0].pose.position.x = 
+					poseFeedback.transform.translation.x;
+				pathTargetMsg.poses[0].pose.position.y = 
+					poseFeedback.transform.translation.y;
+				
 				// Calculate Euclidean distance
 				// Dx and Dy
 				diff_x = poseSetpoint.position.x - poseFeedback.transform.translation.x;
@@ -415,6 +420,11 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					
 					// 2. Look for next Setpoint
 					irob_updateCarrot();
+					 
+					pathTargetMsg.poses[1].pose.position.x = 
+						pathMsg.poses[next_pose].pose.position.x;
+					pathTargetMsg.poses[1].pose.position.y = 
+						pathMsg.poses[next_pose].pose.position.y; 
 					 
 					// 3. Calculate Heading from current Pose to next Pose
 					next_heading = atan2(
@@ -530,6 +540,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					rotateIntg = 0.0;
 				}
 				
+				pubPath->publish(pathTargetMsg);
 			}
 			break;
 		}

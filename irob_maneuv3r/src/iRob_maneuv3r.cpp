@@ -51,6 +51,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	
 	// iRob status message
 	rclcpp::Publisher<irob_msgs::msg::IrobCmdMsg>::SharedPtr		pubiRobStat;
+	irob_msgs::msg::IrobCmdMsg statMsg;
 	
 	// Sub
 	// Pose stamped command
@@ -62,7 +63,6 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	rclcpp::Subscription<irob_msgs::msg::IrobCmdMsg>::SharedPtr		subiRobCmd;
 	// Buffer for receive messages
 	std::string irob_cmd;
-	
 	
 	// Wall timer for PID control loop 50Hz
 	rclcpp::TimerBase::SharedPtr timer_;
@@ -175,13 +175,13 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		tf_listener_ =
 			std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 		
-		pubMotion = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel_irob_auto", 10);
+		pubMotion = create_publisher<geometry_msgs::msg::Twist>("cmd_vel_irob_auto", 10);
 		
-		pubiRobStat = create_publisher<irob_msgs::msg::IrobCmdMsg>("/irob_maneuv3r_status", 10);
+		pubiRobStat = create_publisher<irob_msgs::msg::IrobCmdMsg>("irob_stat", 10);
 		
 		subPoseStamped = 
 			create_subscription<geometry_msgs::msg::PoseStamped>(
-				"/goal_pose",
+				"goal_pose",
 				10,
 				std::bind(
 					&irob_rbc_maneuv3r::irob_pose_callback,
@@ -191,7 +191,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		
 		subiRobCmd =
 			create_subscription<irob_msgs::msg::IrobCmdMsg>(
-				"/irob_cmd",
+				"irob_cmd",
 				10,
 				std::bind(
 					&irob_rbc_maneuv3r::irob_cmd_callback,
@@ -239,8 +239,14 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 	void irob_cmd_callback(const irob_msgs::msg::IrobCmdMsg::SharedPtr irob_command){
 		irob_cmd = irob_command->irobcmd;
 		if(irob_cmd == "stop"){
+			irob_pub_stat("canceled");
 			loop_fsm = 0;
 		}
+	}
+	
+	void irob_pub_stat(std::string stat_msg){
+		statMsg.irobcmd = stat_msg;
+		pubiRobStat->publish(statMsg);	
 	}
 	
 	void irob_loop_runner(){
@@ -254,6 +260,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				walkIntg = 0.0;
 				rotateIntg = 0.0;
 				if(irob_cmd == "run"){
+					irob_pub_stat("starting");
 					loop_fsm = 1;
 				}
 			}
@@ -268,7 +275,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 						tf_buffer_->lookupTransform(
 							map_frame_id, robot_frame_id, 
 							tf2::TimePointZero,
-							tf2::Duration(1)
+							tf2::durationFromSec(0.1)
 						);
 						
 				} catch (const tf2::TransformException & ex) {
@@ -282,7 +289,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 					
 					loop_fsm = 0;
 					irob_cmd = "";
-					
+					irob_pub_stat("failed");
 				  break;
 				}
 				
@@ -293,7 +300,6 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 				fYaw = tf2::getYaw(quat_tf);
 				// if(fYaw < 0.0)
 					// fYaw += 6.28319;
-				
 				
 				RCLCPP_INFO(
 					this->get_logger(),
@@ -390,10 +396,12 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 					fVel = 0.0;
 					cVelAz = 0.0;
 					irob_cmd = "";
+					irob_pub_stat("done");
 					RCLCPP_INFO(
 						this->get_logger(),
 						"Goal success!"
 					);
+					
 				}
 				
 				
@@ -408,6 +416,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 			);
 		
 		pubMotion->publish(twist);
+		
 	}
 	
 	private:
