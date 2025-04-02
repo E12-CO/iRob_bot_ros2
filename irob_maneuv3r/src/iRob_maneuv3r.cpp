@@ -241,6 +241,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		if(irob_cmd == "stop"){
 			irob_pub_stat("canceled");
 			loop_fsm = 0;
+			RCLCPP_WARN(this->get_logger(), "Goal canceled!");
 		}
 	}
 	
@@ -254,9 +255,8 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		switch(loop_fsm){
 			case 0:// Idle case, wait for start command from /irob_cmd
 			{
-				twist.linear.x = 0.0;
-				twist.linear.y = 0.0;
-				twist.angular.z = 0.0;
+				fVel = 0;
+				cVelAz = 0.0;
 				walkIntg = 0.0;
 				rotateIntg = 0.0;
 				if(irob_cmd == "run"){
@@ -279,7 +279,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 						);
 						
 				} catch (const tf2::TransformException & ex) {
-					RCLCPP_INFO(
+					RCLCPP_WARN(
 						this->get_logger(), 
 						"Could not transform %s to %s: %s",
 						robot_frame_id.c_str(), 
