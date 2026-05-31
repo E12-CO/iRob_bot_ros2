@@ -20,8 +20,3 @@ iRob_maneuv3r_tracker:
         rotate_kd: 0.0
         rotate_max_vel: 1.1
         rotate_goal_tolerance: 0.035
-        
-        twist_topic_name: "cmd_vel_irob_auto"
-        path_topic_name: "smooth_path"
-        irob_status_topic_name: "irob_stat"
-        irob_cmd_topic_name: "irob_cmd"
