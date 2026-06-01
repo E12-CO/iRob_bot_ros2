@@ -1,0 +1,5 @@
+<library path="trajectory_panel">
+  <class type="irob_trajec_maker_panel::TrajectoryPanel" base_class_type="rviz_common::Panel">
+    <description>iRob Trajectory maker control panel</description>
+  </class>
+</library>
