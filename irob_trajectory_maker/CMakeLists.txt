@@ -9,6 +9,9 @@ find_package(ament_cmake_ros REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rviz_common REQUIRED)
 
+# iRob packages
+find_package(irob_msgs REQUIRED)
+
 set(CMAKE_AUTOMOC ON)
 qt5_wrap_cpp(MOC_FILES
   include/irob_trajectory_maker/irob_trajectory_maker_panel.hpp
@@ -22,6 +25,7 @@ target_include_directories(trajectory_panel PUBLIC
 ament_target_dependencies(trajectory_panel
   pluginlib
   rviz_common
+  irob_msgs
 )
 install(TARGETS trajectory_panel
         EXPORT export_irob_trajectory_maker
@@ -34,6 +38,14 @@ install(DIRECTORY include/
 )
 install(FILES rviz_common_plugins.xml
         DESTINATION share/${PROJECT_NAME}
+)
+
+# Install python scripts
+ament_python_install_package(${PROJECT_NAME})
+
+install(PROGRAMS
+ src/irob_trajectory_maker.py
+ DESTINATION lib/${PROJECT_NAME}
 )
 
 install(

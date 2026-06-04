@@ -39,16 +39,22 @@ namespace irob_trajec_maker_panel
 			qRobotClubIcon_->setScaledContents(false);// Don't scale the logo when expanding the rViz panel
 			
 			// Robot status
+			qLabelPoseNumber_	= new QLabel("Pose Number: 0");
 			qLabelPositionX_	= new QLabel("X: 0.0");
 			qLabelPositionY_	= new QLabel("Y: 0.0");
+			qLabelPosePoints_	= new QLabel("Total Pose points: 0");
 			qLabelRobotState_	= new QLabel("Status: OK");
 			
+			qLabelPoseNumber_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			qLabelPositionX_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			qLabelPositionY_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			qLabelPosePoints_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			qLabelRobotState_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			
+			qBoxRobotStatus_->addWidget(qLabelPoseNumber_);
 			qBoxRobotStatus_->addWidget(qLabelPositionX_);
 			qBoxRobotStatus_->addWidget(qLabelPositionY_);
+			qBoxRobotStatus_->addWidget(qLabelPosePoints_);
 			qBoxRobotStatus_->addWidget(qLabelRobotState_);
 			
 			qBoxRobotLogo_->addWidget(qRobotClubIcon_, 0, Qt::AlignRight);
@@ -64,18 +70,41 @@ namespace irob_trajec_maker_panel
 			qButtonUndo_ 		= new QPushButton("Undo pose");
 			qButtonPublishPath_	= new QPushButton("Publish Path");
 			qButtonSavePath_	= new QPushButton("Save Path to file");	
+			qButtonOpenPath_	= new QPushButton("Open Path from file");
 			
 			qBoxControlBtns_->addWidget(qButtonUndo_);
 			qBoxControlBtns_->addWidget(qButtonPublishPath_);
 			qBoxControlBtns_->addWidget(qButtonSavePath_);
+			qBoxControlBtns_->addWidget(qButtonOpenPath_);
 			
 			// Connect buttons to callback
+			QObject::connect(
+				qButtonUndo_,
+				&QPushButton::released,
+				this,
+				&TrajectoryPanel::vButtonUndoTrajectory
+				);
+			
+			QObject::connect(
+				qButtonPublishPath_,
+				&QPushButton::released,
+				this,
+				&TrajectoryPanel::vButtonPublishPath
+				);
+			
 			QObject::connect(
 				qButtonSavePath_, 
 				&QPushButton::released, 
 				this, 
-				&TrajectoryPanel::vButtonFilePicker
+				&TrajectoryPanel::vButtonSaveFilePicker
 				);
+				
+			QObject::connect(
+				qButtonOpenPath_, 
+				&QPushButton::released, 
+				this, 
+				&TrajectoryPanel::vButtonOpenFilePicker
+				);	
 		}
 		
 		// Layout : add everything to main box
@@ -107,11 +136,45 @@ namespace irob_trajec_maker_panel
 			"Starting iRob Trajectory Maker panel"
 			);
 		
+		// Setting up communication with the python backend node
+		pubToPyNode = nRvizNode->create_publisher<irob_msgs::msg::IrobCmdMsg>("/irob_panel_to_backend", 10);
+		
+		subFromPyNode = nRvizNode->create_subscription<irob_msgs::msg::IrobCmdMsg>(
+				"/irob_backend_to_panel",
+				10,
+				std::bind(
+					&TrajectoryPanel::vIrobBackendCallbackHandler,
+					this,
+					std::placeholders::_1)
+			);
 		
 	}
 	
+	void TrajectoryPanel::vIrobBackendCallbackHandler(const irob_msgs::msg::IrobCmdMsg::SharedPtr backendMsg){
+		//backendMsg->irobcmd;
+	}
 	
-	void TrajectoryPanel::vButtonFilePicker(){
+	void TrajectoryPanel::vButtonUndoTrajectory(){
+		RCLCPP_INFO(
+			nRvizNode->get_logger(),
+			"Undo the latest pose..."
+		);
+		
+		toBackendMsg.irobcmd = "undo";
+		pubToPyNode->publish(toBackendMsg);
+	}
+	
+	void TrajectoryPanel::vButtonPublishPath(){
+		RCLCPP_INFO(
+			nRvizNode->get_logger(),
+			"Publishing path..."
+		);
+		
+		toBackendMsg.irobcmd = "pub";
+		pubToPyNode->publish(toBackendMsg);
+	}
+	
+	void TrajectoryPanel::vButtonSaveFilePicker(){
 		RCLCPP_INFO(
 			nRvizNode->get_logger(),
 			"Saving Path file..."
@@ -120,7 +183,7 @@ namespace irob_trajec_maker_panel
 		// Create file dialog
 		qFileSavePathCSV_	= new QFileDialog;
 		
-		qFileSavePathCSV_->setWindowTitle("Save Path CSV");
+		qFileSavePathCSV_->setWindowTitle("Save Path to CSV file");
 		qFileSavePathCSV_->setAcceptMode(QFileDialog::AcceptSave);
 		qFileSavePathCSV_->setNameFilter("iRob Path file (*.csv *.CSV)");
 		if(qFileSavePathCSV_->exec()){
@@ -129,8 +192,43 @@ namespace irob_trajec_maker_panel
 				nRvizNode->get_logger(),
 				"Saved as %s", qStrSavePathName_->toUtf8().data()
 			);
+			
+			// Send save command to python backend node
+			toBackendMsg.irobcmd = "save,";
+			toBackendMsg.irobcmd += qStrSavePathName_->toStdString();
+			
+			pubToPyNode->publish(toBackendMsg);
 		}
 	}
+	
+	void TrajectoryPanel::vButtonOpenFilePicker(){
+		RCLCPP_INFO(
+			nRvizNode->get_logger(),
+			"Openning Path file..."
+		);
+			
+		qFileOpenPathCSV_	= new QFileDialog;
+		
+		qFileOpenPathCSV_->setWindowTitle("Open Path CSV file");
+		qFileSavePathCSV_->setAcceptMode(QFileDialog::AcceptOpen);
+		qFileSavePathCSV_->setNameFilter("iRob Path file (*.csv *.CSV)");
+		if(qFileOpenPathCSV_->exec()){
+			qStrOpenPathName_ = new QString(qFileOpenPathCSV_->selectedFiles()[0]);
+			RCLCPP_INFO(
+				nRvizNode->get_logger(),
+				"Open file %s ", 
+				qStrOpenPathName_->toUtf8().data()
+			);
+			
+			toBackendMsg.irobcmd = "open,";
+			toBackendMsg.irobcmd += qStrOpenPathName_->toStdString();
+			
+			pubToPyNode->publish(toBackendMsg);
+		}
+		
+	}
+	
+	
 }  
 
 #include <pluginlib/class_list_macros.hpp>

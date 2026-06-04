@@ -6,6 +6,9 @@
 #include <rviz_common/load_resource.hpp>
 #include <rviz_common/ros_integration/ros_node_abstraction_iface.hpp>
 
+// iRob command message
+#include "irob_msgs/msg/irob_cmd_msg.hpp"
+
 #include <QString>
 #include <QByteArray>
 
@@ -41,8 +44,10 @@ namespace irob_trajec_maker_panel
 			QHBoxLayout*	qBoxRobotLogo_;
 			QPixmap*		qLogoPixmap_;
 			QLabel*			qRobotClubIcon_;
+			QLabel*			qLabelPoseNumber_;
 			QLabel*			qLabelPositionX_;
 			QLabel*			qLabelPositionY_;
+			QLabel*			qLabelPosePoints_;
 			QLabel*			qLabelRobotState_;
 			
 			// Layout : Control buttons
@@ -63,9 +68,24 @@ namespace irob_trajec_maker_panel
 			std::shared_ptr<rviz_common::ros_integration::RosNodeAbstractionIface> node_ptr_;
 			
 			rclcpp::Node::SharedPtr	nRvizNode;
+			
+			// Communication between python node and rviz panel node
+			rclcpp::Publisher<irob_msgs::msg::IrobCmdMsg>::SharedPtr	pubToPyNode;
+			
+			rclcpp::Subscription<irob_msgs::msg::IrobCmdMsg>::SharedPtr	subFromPyNode;
+			
+			irob_msgs::msg::IrobCmdMsg toBackendMsg;
+			
+			void vIrobBackendCallbackHandler(const irob_msgs::msg::IrobCmdMsg::SharedPtr backendMsg);
 		
 		private Q_SLOTS:
-			void vButtonFilePicker();
+		
+			// Button callback
+			void vButtonUndoTrajectory();
+			void vButtonPublishPath();
+			void vButtonSaveFilePicker();
+			void vButtonOpenFilePicker();
+			
 	};
 	
 }  
