@@ -43,7 +43,7 @@ class PathInterpolator(Node):
                 10
             )
         
-        self.poseArray = []
+        self.poseArray = Path()
         self.linearPath_msg = Path()
         self.smoothPath_msg = Path()
         self.linearPath_msg.header.frame_id = 'map'
@@ -73,23 +73,23 @@ class PathInterpolator(Node):
     CSV Reader/Writer
     """
     def csv_reader(self):
-        readPoseStamped = PoseStamped()
+        self.poseArray = Path()
         with open(self.pathCSVName, mode='r', newline='\n') as csvFile:
             reader = csv.DictReader(csvFile)
-            self.poseArray = []
             for rawPose in reader:
+                readPoseStamped = PoseStamped()
                 readPoseStamped.pose.position.x = float(rawPose['x'])
                 readPoseStamped.pose.position.y = float(rawPose['y'])
-                w, x, y, z = self.yaw_to_quat(
+                q = self.yaw_to_quat(
                         float(rawPose['yaw'])
                     )
-                readPoseStamped.pose.orientation.x = 0.0
-                readPoseStamped.pose.orientation.y = 0.0
-                readPoseStamped.pose.orientation.z = 0.0
-                readPoseStamped.pose.orientation.w = 1.0
-                  
-                self.poseArray.append(readPoseStamped)
-                
+                readPoseStamped.pose.orientation.x = q[1]
+                readPoseStamped.pose.orientation.y = q[2]
+                readPoseStamped.pose.orientation.z = q[3]
+                readPoseStamped.pose.orientation.w = q[0]
+
+                self.poseArray.poses.append(readPoseStamped)
+                   
         csvFile.close()
         self.pose_interpolatePoints()
         
@@ -98,7 +98,7 @@ class PathInterpolator(Node):
             
             writer = csv.DictWriter(csvFile, fieldnames=['x', 'y', 'yaw'])
             writer.writeheader()
-            for rawPose in self.poseArray:
+            for rawPose in self.poseArray.poses:
                 writer.writerow(
                     {'x': round(rawPose.pose.position.x, 3), 
                     'y': round(rawPose.pose.position.y, 3),
@@ -121,7 +121,7 @@ class PathInterpolator(Node):
         """
         self.get_logger().info('Received Pose')
         self.poseNumeber = self.poseNumeber + 1
-        self.poseArray.append(msg)
+        self.poseArray.poses.append(msg)
         self.pose_interpolatePoints()
 
     def panel_callback(self, panelMsg):
@@ -134,10 +134,10 @@ class PathInterpolator(Node):
             
         if panelCommand == 'undo':
             # Undo the last pose
-            if len(self.poseArray) > 0:
+            if len(self.poseArray.poses) > 0:
                 self.poseNumeber = self.poseNumeber - 1
                 self.get_logger().info("Undoing last point")
-                self.poseArray.pop()
+                self.poseArray.poses.pop()
                 self.pose_interpolatePoints() # Update the path
             
         elif panelCommand == 'pub':
@@ -148,6 +148,12 @@ class PathInterpolator(Node):
             # Smoothing the path
             self.get_logger().info('Publishing smooth Path...')
             self.smoothPathPub_.publish(self.smoothPath_msg)
+            
+        elif panelCommand =='clr':
+            # Clear all pose
+            self.get_logger().info("Clear current Path...")
+            self.linearPath_msg.poses.clear()
+            self.last_point = None
             
         elif panelCommand == 'save':
             # save pose waypoint to CSV
@@ -173,39 +179,47 @@ class PathInterpolator(Node):
         yaw_values = np.linspace(start[2], end[2], num_points + 2)
         return [(x, y, yaw) for x, y, yaw in zip(x_values, y_values, yaw_values)]
 
+    def pose_publishPreview(self):
+        self.linearPath_msg.header.stamp = self.get_clock().now().to_msg()
+        self.smoothPath_msg.header.stamp = self.linearPath_msg.header.stamp
+        self.linearPreviewPub_.publish(self.linearPath_msg)
+        self.smoothPreviewPub_.publish(self.smoothPath_msg)
+        
     def pose_interpolatePoints(self):
-        if len(self.poseArray) < 2:
+        if len(self.poseArray.poses) < 2:
             self.linearPath_msg.poses.clear()
+            self.smoothPath_msg.poses.clear()
             self.linearPath_msg.header.stamp = self.get_clock().now().to_msg()
-            self.linearPreviewPub_.publish(self.linearPath_msg)
+            self.pose_publishPreview()
             return
     
         # Clear previous poses
         self.linearPath_msg.poses.clear()
+        self.smoothPath_msg.poses.clear()
     
-        for i in range(len(self.poseArray) - 1):
+        for i in range(len(self.poseArray.poses) - 1):
             current_point = (
-                self.poseArray[i].pose.position.x, 
-                self.poseArray[i].pose.position.y,
+                self.poseArray.poses[i].pose.position.x, 
+                self.poseArray.poses[i].pose.position.y,
                 self.quat_to_yaw(
-                    self.poseArray[i].pose.orientation.x,
-                    self.poseArray[i].pose.orientation.y,
-                    self.poseArray[i].pose.orientation.z,
-                    self.poseArray[i].pose.orientation.w
+                    self.poseArray.poses[i].pose.orientation.x,
+                    self.poseArray.poses[i].pose.orientation.y,
+                    self.poseArray.poses[i].pose.orientation.z,
+                    self.poseArray.poses[i].pose.orientation.w
                 )
                 )
         
             next_point = (
-                self.poseArray[i+1].pose.position.x, 
-                self.poseArray[i+1].pose.position.y,
+                self.poseArray.poses[i+1].pose.position.x, 
+                self.poseArray.poses[i+1].pose.position.y,
                 self.quat_to_yaw(
-                    self.poseArray[i+1].pose.orientation.x,
-                    self.poseArray[i+1].pose.orientation.y,
-                    self.poseArray[i+1].pose.orientation.z,
-                    self.poseArray[i+1].pose.orientation.w
+                    self.poseArray.poses[i+1].pose.orientation.x,
+                    self.poseArray.poses[i+1].pose.orientation.y,
+                    self.poseArray.poses[i+1].pose.orientation.z,
+                    self.poseArray.poses[i+1].pose.orientation.w
                 )
                 )
-        
+
             interpolated_points = self.interpolate_points(current_point, next_point, num_points=50)
 
             for lPose in interpolated_points:
@@ -224,10 +238,6 @@ class PathInterpolator(Node):
 
             print("Interpolated path length:", len(self.linearPath_msg.poses))
 
-        # Publish the linear interpolated path
-        self.linearPath_msg.header.stamp = self.get_clock().now().to_msg()
-        self.linearPreviewPub_.publish(self.linearPath_msg)
-    
         # Update the smooth path
         self.pose_generateSmoothPath()
     
@@ -276,31 +286,14 @@ class PathInterpolator(Node):
         self.totalPosePoints = len(self.smoothPath_msg.poses)
         print("Smooth path length:", self.totalPosePoints)
         
-        # Update the Path header timestamp
-        self.smoothPath_msg.header.stamp = self.get_clock().now().to_msg()
-        # Publish the updated Path
-        self.smoothPreviewPub_.publish(self.smoothPath_msg)
+        # Publish the updated review path
+        self.pose_publishPreview()
 
     def timer_callback(self):
         # Keypress detection
-        Key = getKey()
-        
-        if Key == 'r':
-            # Clear current path
-            self.get_logger().info("Clear current Path...")
-            self.linearPath_msg.poses.clear()
-            self.last_point = None
         
         #self.pubToPanelNode.publish()
-
-
-def getKey():
-    tty.setcbreak(sys.stdin.fileno())
-    key = ''
-    if select.select([sys.stdin], [], [], 0.05) == ([sys.stdin], [], []):
-        key = sys.stdin.read(1)
-    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
-    return key
+        return
 
 def main(args=None):
     rclpy.init()
