@@ -29,6 +29,9 @@
 #include <tf2/LinearMath/Vector3.h>
 #include "tf2/utils.h"
 
+// Visualization message
+#include <visualization_msgs/msg/marker.hpp>
+
 // Sensor messages
 #include "sensor_msgs/msg/magnetic_field.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -40,6 +43,10 @@
 #define LOOP_TIME_MIL   50 // 50 millisec -> 20Hz
 #define LOOP_TIME_SEC	LOOP_TIME_MIL/1000 // Loop time in second
 
+#define CHOOSE_MIN(x,y)	((x < y) ? x : y)
+#define CAP_HIGH(x,c)	((x > c) ? c : x)
+#define CAP_LOW(x,c)	((x < c) ? c : x)
+ 
 class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	
 	public:
@@ -78,6 +85,10 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
 	std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
 	
+	// Visualization markers
+	rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr	pubCarrotMark;
+	visualization_msgs::msg::Marker	carrotMark;
+	
 	/* PARAMETERS */
 	
 	// ROS fram of reference names
@@ -102,12 +113,13 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	double walk_vel_filter;
 
 	double heading_velocity_braking_ratio;
-	int lookahead_points = 0;
+	uint32_t lookahead_ff_points = 0;
 	
 	double walkKp;
 	double walkKi;
 	double walkKd;
 	double walkMax;
+	double walkMin;
 	
 	double rotateKp;
 	double rotateKi;
@@ -136,8 +148,8 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		declare_parameter("lookahead_distance", 1.0);
 		get_parameter("lookahead_distance", lookahead_dist);
 		
-		declare_parameter("brake_ratio", 1.0);
-		get_parameter("brake_ratio", heading_velocity_braking_ratio);
+		declare_parameter("lookahead_ff_points", 10);
+		get_parameter("lookahead_ff_points", lookahead_ff_points);
 		
 		declare_parameter("walk_kp", 1.0);
 		get_parameter("walk_kp", walkKp);
@@ -145,10 +157,13 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		get_parameter("walk_ki", walkKi);
 		declare_parameter("walk_kd", 0.0);
 		get_parameter("walk_kd", walkKd);
+		
 		declare_parameter("walk_max_vel", 1.0);
 		get_parameter("walk_max_vel", walkMax);
-		declare_parameter("walk_vel_filter", 0.4);
-		get_parameter("walk_vel_filter", walk_vel_filter);
+		declare_parameter("walk_min_vel", 0.1);
+		get_parameter("walk_min_vel", walkMin);
+
+
 		declare_parameter("walk_goal_tolerance", 0.01);
 		get_parameter("walk_goal_tolerance", walk_goal_tolerance);
 		
@@ -186,6 +201,8 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		pathTargetMsg.header.frame_id = map_frame_id;	
 		pathTargetMsg.poses.resize(2);
 				
+		// Visualization
+		pubCarrotMark = create_publisher<visualization_msgs::msg::Marker>("carrot", 10);		
 		
 		subPath = 
 			create_subscription<nav_msgs::msg::Path>(
@@ -266,7 +283,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				);
 				
 		} catch (const tf2::TransformException & ex) {
-			RCLCPP_INFO(
+			RCLCPP_ERROR(
 				this->get_logger(), 
 				"Could not transform %s to %s: %s",
 				robot_frame_id.c_str(), 
@@ -285,12 +302,6 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		// Orientation from Pose feedback 
 		tf2::fromMsg(poseFeedback.transform.rotation, quat_tf);
 		fYaw = tf2::getYaw(quat_tf);			
-		
-		// RCLCPP_INFO(
-			// this->get_logger(),
-			// "Current Orientation %f",
-			// fYaw
-		// );
 		
 		return 0;
 	}
@@ -314,7 +325,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				if(look_distance >= lookahead_dist){					
 					next_pose = c;
 
-					RCLCPP_INFO(
+					RCLCPP_DEBUG(
 						this->get_logger(),
 						"Next setpoint pose %ld out of %ld",
 						next_pose, path_Length - 1	
@@ -328,11 +339,90 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 			// If not found, use next Pose
 			next_pose = current_pose + 1;
 		}
-		// else{
-			// current_pose = 0;
-			// loop_fsm = 0;
-			// irob_cmd = "stop";
-		// }
+
+	}
+	
+	void irob_drawCarrot(){
+		carrotMark.header.frame_id = "map";
+		carrotMark.header.stamp = this->get_clock()->now();
+		carrotMark.id = 0;
+		carrotMark.type = carrotMark.SPHERE;
+		carrotMark.action = carrotMark.ADD;
+		carrotMark.scale.x = 0.5;
+		carrotMark.scale.y = 0.5;
+		carrotMark.color.a = 1.0;
+        carrotMark.color.r = 1.0;
+        carrotMark.color.r = 0.5;
+        carrotMark.pose.position.x = pathMsg.poses[current_pose].pose.position.x;
+        carrotMark.pose.position.y = pathMsg.poses[current_pose].pose.position.y;
+        carrotMark.pose.position.z = 0.5;
+        pubCarrotMark->publish(carrotMark);
+	}
+	
+	uint32_t feedforward_points = 0;
+	uint32_t remain_poses = 0;
+	float angleCost;
+	float finalCost;
+	
+	float calculated_cmd_vel; 
+	
+	void irob_lookaheadFeedforward(){
+		remain_poses = path_Length - current_pose;
+		
+		// determine how many ff points we can use
+		// If the lookahead feedforward points is more than the remaining poses
+		// chose the least one instaed.
+		feedforward_points = CHOOSE_MIN(lookahead_ff_points, remain_poses);
+		
+		// Accumulate the angle cost
+		// from the angle of 0->1 & 1->2, 1->2 & 2->3, 2->3 & 3->4 and so on
+		// lookahead 3 points produce 1 angle
+		// lookahead 4 points produce 2 angles
+		// lookahead 5 points produce 3 angles
+		// lookahead n points produce n-2 angles
+		angleCost = 0.0f;
+		for(uint32_t i=0; i < (feedforward_points - 2); i++){
+			angleCost += abs(
+				atan2(
+					pathMsg.poses[current_pose + i + 1].pose.position.y - pathMsg.poses[current_pose + i].pose.position.y ,
+					pathMsg.poses[current_pose + i + 1].pose.position.x - pathMsg.poses[current_pose + i].pose.position.x
+				) - 
+				atan2(
+					pathMsg.poses[current_pose + i + 2].pose.position.y - pathMsg.poses[current_pose + i + 1].pose.position.y ,
+					pathMsg.poses[current_pose + i + 2].pose.position.x - pathMsg.poses[current_pose + i + 1].pose.position.x
+				)
+			);
+		}
+		
+		// Also add the angle cost from the current position to the feed forward
+		// angleCost += abs(
+			// atan2(
+				// pathMsg.poses[current_pose].pose.position.y - poseFeedback.transform.translation.y,
+				// pathMsg.poses[current_pose].pose.position.x - poseFeedback.transform.translation.x
+			// ) - 
+			// atan2(
+				// pathMsg.poses[current_pose + 1].pose.position.y - pathMsg.poses[current_pose].pose.position.y ,
+				// pathMsg.poses[current_pose + 1].pose.position.x - pathMsg.poses[current_pose].pose.position.x
+			// )
+		// );
+	
+		RCLCPP_DEBUG(
+			this->get_logger(),
+			"Angle Cost %.02f", angleCost
+		);
+	
+		// Convert the cost to exponential dekay
+		finalCost = 1 / exp(angleCost);
+		finalCost = round(finalCost * 100.0) / 100.0;
+		
+		calculated_cmd_vel = walkMax * finalCost;// Scale the max speed by the exponential decay
+		calculated_cmd_vel = CAP_LOW(calculated_cmd_vel, walkMin);// Prevent the velocity for being too small
+			
+		RCLCPP_DEBUG(
+			this->get_logger(),
+			"Command Vel %.02f", calculated_cmd_vel
+		);
+			
 	}
 	
 	// Current Pose
@@ -421,35 +511,9 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					// 2. Look for next Setpoint
 					irob_updateCarrot();
 					 
-					pathTargetMsg.poses[1].pose.position.x = 
-						pathMsg.poses[next_pose].pose.position.x;
-					pathTargetMsg.poses[1].pose.position.y = 
-						pathMsg.poses[next_pose].pose.position.y; 
+					irob_lookaheadFeedforward(); 
 					 
-					// 3. Calculate Heading from current Pose to next Pose
-					next_heading = atan2(
-							pathMsg.poses[next_pose].pose.position.y -
-							poseSetpoint.position.x,
-							pathMsg.poses[next_pose].pose.position.x -
-							poseSetpoint.position.x
-						);
-					
-					// 4. Scale velocity based on heading difference Pose heading and measured heading
-					del_heading = abs(abs(next_heading) - abs(cHeading));
-					if(del_heading > 3.141593){
-						del_heading = 6.283185 - del_heading;	
-					}
-					
-					del_heading = del_heading/3.141593; // Scaling between 0 to 1
-					del_heading = del_heading * del_heading;
-					RCLCPP_INFO(
-						this->get_logger(),
-						"Velocity brake scaling %f",
-						del_heading
-					);
-					
-					
-					cVel = abs(walkMax - (del_heading * heading_velocity_braking_ratio));	
+					cVel = calculated_cmd_vel;
 				}else{
 					// Else if the goal Pose is the last one, use PID controller to approach the goal
 					walkIntg += eDist * walkKi;
@@ -468,15 +532,12 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					);	
 				}
 				
-				
 				if(cVel > walkMax)
 					cVel = walkMax;
 				
 				if(cVel < -walkMax)
 					cVel = -walkMax;
-				
-				fVel = ((1 - walk_vel_filter) * fVel) + (walk_vel_filter * cVel);
-				
+
 				// 5. Update next setpoint
 				if(next_pose != current_pose){
 					current_pose = next_pose;
@@ -510,15 +571,17 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					cVelAz = -rotateMax;
 				
 				// 
-				RCLCPP_INFO(
+				RCLCPP_DEBUG(
 					this->get_logger(),
 					"Vel %f | Heading %f ",
-					fVel, cHeading
+					cVel, cHeading
 				);
+				
+				irob_drawCarrot();
 				
 				// Goal checker 
 				if((abs(eDist) <= walk_goal_tolerance)){						
-					fVel = 0.0;
+					cVel = 0.0;
 					walkIntg = 0.0;
 					
 					if(next_pose >= (path_Length - 1)){
@@ -546,7 +609,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		}
 		
 		maneuv3r_update_Cmdvel(
-			fVel,
+			cVel,
 			cHeading,
 			cVelAz
 			);
