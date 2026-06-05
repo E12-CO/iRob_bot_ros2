@@ -70,6 +70,15 @@ class PathInterpolator(Node):
         (w, x, y, z) = transforms3d.euler.euler2quat(0, 0, yaw,'sxyz')
         return w, x, y, z
         
+    def euclideandistance(self, poseBegin, poseEnd):
+        dX = poseBegin[0] - poseEnd[0]
+        dY = poseBegin[1] - poseEnd[1]
+        
+        dX = dX * dX
+        dY = dY * dY
+        
+        return math.sqrt(dX + dY)
+        
     """
     CSV Reader/Writer
     """
@@ -221,7 +230,11 @@ class PathInterpolator(Node):
                 )
                 )
 
-            interpolated_points = self.interpolate_points(current_point, next_point, num_points=50)
+            dist = self.euclideandistance(current_point, next_point)
+
+            num_points_per_length = round(dist * 20)
+
+            interpolated_points = self.interpolate_points(current_point, next_point, num_points=num_points_per_length)
 
             for lPose in interpolated_points:
                 pose = PoseStamped()
