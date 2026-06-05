@@ -12,7 +12,7 @@ iRob_bot_ros2 is a ROS2 support package for [iRob-bot](https://github.com/E12-CO
 
 # TODO
 - implement the ```irob_interface_wireless``` to be used with the original iRob-bot
-- implement the pure pursuit controller with lookahead feedforward velocity brake and acceleration control
+- implement the pure pursuit controller with DONE~~lookahead feedforward velocity brake~~ and acceleration control
 - built-in EKF to support other odometry method (based on optical mouse sensor, LiDAR and/or dead wheels)
 - save trajectory from ```irob_trajectory_server``` into CSV format
 - Add the dependency list to readme
