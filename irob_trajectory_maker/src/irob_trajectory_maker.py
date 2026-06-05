@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Trajectory smoother with save to CSV capabilities
 # Thanks god ChatGPT can help me write python
 
