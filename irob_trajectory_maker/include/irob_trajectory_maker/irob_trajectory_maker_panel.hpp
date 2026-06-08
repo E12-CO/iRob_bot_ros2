@@ -37,10 +37,12 @@ namespace irob_trajec_maker_panel
 			// Layout : Header
 			QVBoxLayout*	qBoxHeader_;
 			QLabel* 		qHeaderLabel_;
+			QLabel*			qOpenFileName_;
 			
-			// Layout : Robot Status ad Logo
+			// Layout : Robot Status and Logo
 			QHBoxLayout*	qBoxRobotStatusLogo_;
 			QVBoxLayout*	qBoxRobotStatus_;
+			QVBoxLayout*	qBoxActualRobotStatus_;
 			QHBoxLayout*	qBoxRobotLogo_;
 			QPixmap*		qLogoPixmap_;
 			QLabel*			qRobotClubIcon_;

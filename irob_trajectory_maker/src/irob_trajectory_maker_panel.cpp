@@ -14,16 +14,21 @@ namespace irob_trajec_maker_panel
 		// Layout : Header
 		{
 			qBoxHeader_ 	= new QVBoxLayout(this);
-			qHeaderLabel_	= new QLabel("Robot Club KMITL : iRob Trajectory Maker");
+			qHeaderLabel_	= new QLabel("Robot Club KMITL  iRob Trajectory Maker");
+			qOpenFileName_ = new QLabel("Current Path File :");
 			
 			qHeaderLabel_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			qOpenFileName_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			
 			qBoxHeader_->addWidget(qHeaderLabel_);
+			qBoxHeader_->addWidget(qOpenFileName_);
 		}
 		
 		// Layout : Robot Status and Logo
 		{
 			qBoxRobotStatusLogo_	= new QHBoxLayout;
 			qBoxRobotStatus_		= new QVBoxLayout;
+			qBoxActualRobotStatus_	= new QVBoxLayout;
 			qBoxRobotLogo_			= new QHBoxLayout;
 			
 			// Club's logo
@@ -40,22 +45,24 @@ namespace irob_trajec_maker_panel
 			
 			// Robot status
 			qLabelPoseNumber_	= new QLabel("Pose Number: 0");
-			qLabelPositionX_	= new QLabel("X: 0.0");
-			qLabelPositionY_	= new QLabel("Y: 0.0");
+			//qLabelPositionX_	= new QLabel("X: 0.0");
+			//qLabelPositionY_	= new QLabel("Y: 0.0");
 			qLabelPosePoints_	= new QLabel("Total Pose points: 0");
 			qLabelRobotState_	= new QLabel("Status: OK");
 			
 			qLabelPoseNumber_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-			qLabelPositionX_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-			qLabelPositionY_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			//qLabelPositionX_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			//qLabelPositionY_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			qLabelPosePoints_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			qLabelRobotState_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			
-			qBoxRobotStatus_->addWidget(qLabelPoseNumber_);
-			qBoxRobotStatus_->addWidget(qLabelPositionX_);
-			qBoxRobotStatus_->addWidget(qLabelPositionY_);
-			qBoxRobotStatus_->addWidget(qLabelPosePoints_);
-			qBoxRobotStatus_->addWidget(qLabelRobotState_);
+			qBoxActualRobotStatus_->addWidget(qLabelPoseNumber_);
+			//qBoxActualRobotStatus_->addWidget(qLabelPositionX_);
+			//qBoxActualRobotStatus_->addWidget(qLabelPositionY_);
+			qBoxActualRobotStatus_->addWidget(qLabelPosePoints_);
+			qBoxActualRobotStatus_->addWidget(qLabelRobotState_);
+			
+			qBoxRobotStatus_->addLayout(qBoxActualRobotStatus_);
 			
 			qBoxRobotLogo_->addWidget(qRobotClubIcon_, 0, Qt::AlignRight);
 			
@@ -151,7 +158,30 @@ namespace irob_trajec_maker_panel
 	}
 	
 	void TrajectoryPanel::vIrobBackendCallbackHandler(const irob_msgs::msg::IrobCmdMsg::SharedPtr backendMsg){
-		//backendMsg->irobcmd;
+		std::string backendCmd, backendData;
+		std::string updateStr;
+		std::size_t splitPos;
+		
+		if (splitPos = backendMsg->irobcmd.find(','), splitPos != std::string::npos) {
+			backendCmd = backendMsg->irobcmd.substr(0, 4);
+			backendData = backendMsg->irobcmd.substr(splitPos+1);
+		}else{
+			backendCmd = backendMsg->irobcmd;
+		}
+		
+		if (backendCmd == "pose"){
+			updateStr = "Pose Number: ";
+			updateStr += backendData;
+			qLabelPoseNumber_->setText(QString(updateStr.c_str()));
+		}else if(backendCmd == "pnts"){
+			updateStr = "Total Pose points: ";
+			updateStr += backendData;
+			qLabelPosePoints_->setText(QString(updateStr.c_str()));
+		}else if(backendCmd == "ping"){
+			
+			
+		}
+		
 	}
 	
 	void TrajectoryPanel::vButtonUndoTrajectory(){
@@ -175,6 +205,8 @@ namespace irob_trajec_maker_panel
 	}
 	
 	void TrajectoryPanel::vButtonSaveFilePicker(){
+		std::string openFileNameStr;
+		
 		RCLCPP_INFO(
 			nRvizNode->get_logger(),
 			"Saving Path file..."
@@ -188,6 +220,12 @@ namespace irob_trajec_maker_panel
 		qFileSavePathCSV_->setNameFilter("iRob Path file (*.csv *.CSV)");
 		if(qFileSavePathCSV_->exec()){
 			qStrSavePathName_ = new QString(qFileSavePathCSV_->selectedFiles()[0]);
+			
+			openFileNameStr = qStrSavePathName_->toStdString();
+			openFileNameStr = "Current Path File : " + openFileNameStr.substr(openFileNameStr.find_last_of("/") + 1);
+			
+			qOpenFileName_->setText(QString(openFileNameStr.c_str()));
+			
 			RCLCPP_INFO(
 				nRvizNode->get_logger(),
 				"Saved as %s", qStrSavePathName_->toUtf8().data()
@@ -202,6 +240,8 @@ namespace irob_trajec_maker_panel
 	}
 	
 	void TrajectoryPanel::vButtonOpenFilePicker(){
+		std::string openFileNameStr;
+		
 		RCLCPP_INFO(
 			nRvizNode->get_logger(),
 			"Openning Path file..."
@@ -210,10 +250,16 @@ namespace irob_trajec_maker_panel
 		qFileOpenPathCSV_	= new QFileDialog;
 		
 		qFileOpenPathCSV_->setWindowTitle("Open Path CSV file");
-		qFileSavePathCSV_->setAcceptMode(QFileDialog::AcceptOpen);
-		qFileSavePathCSV_->setNameFilter("iRob Path file (*.csv *.CSV)");
+		qFileOpenPathCSV_->setAcceptMode(QFileDialog::AcceptOpen);
+		qFileOpenPathCSV_->setNameFilter("iRob Path file (*.csv *.CSV)");
 		if(qFileOpenPathCSV_->exec()){
 			qStrOpenPathName_ = new QString(qFileOpenPathCSV_->selectedFiles()[0]);
+			
+			openFileNameStr = qStrOpenPathName_->toStdString();
+			openFileNameStr = "Current Path File : " + openFileNameStr.substr(openFileNameStr.find_last_of("/") + 1);
+			
+			qOpenFileName_->setText(QString(openFileNameStr.c_str()));
+			
 			RCLCPP_INFO(
 				nRvizNode->get_logger(),
 				"Open file %s ", 
