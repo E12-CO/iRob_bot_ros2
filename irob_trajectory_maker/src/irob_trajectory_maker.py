@@ -37,6 +37,7 @@ class PathInterpolator(Node):
         Communication between this python backend node and the RViz frontend panel node
         """
         self.pubToPanelNode     =   self.create_publisher(IrobCmdMsg, '/irob_backend_to_panel', 10)
+        self.toPanelMsg = IrobCmdMsg()
         self.subFromPanelNode   =   self.create_subscription(
                 IrobCmdMsg,
                 '/irob_panel_to_backend',
@@ -56,7 +57,9 @@ class PathInterpolator(Node):
         self.pathCSVName = ''
 
         self.last_point = None
-        self.timer = self.create_timer(0.5, self.timer_callback)
+        
+        self.panelReportFsm = 0
+        self.timer = self.create_timer(0.25, self.timer_callback)
         self.get_logger().info("Robot Club Engineering KMITL : starting iRob trajectory maker...")
 
     """
@@ -97,6 +100,8 @@ class PathInterpolator(Node):
                 readPoseStamped.pose.orientation.y = q[2]
                 readPoseStamped.pose.orientation.z = q[3]
                 readPoseStamped.pose.orientation.w = q[0]
+
+            
 
                 self.poseArray.poses.append(readPoseStamped)
                    
@@ -304,10 +309,27 @@ class PathInterpolator(Node):
         self.pose_publishPreview()
 
     def timer_callback(self):
-        # Keypress detection
+        # Status report back to front end panel
         
-        #self.pubToPanelNode.publish()
-        return
+        if self.panelReportFsm == 0:
+            # Report the pose number
+            self.toPanelMsg.irobcmd = 'pose,' + str(len(self.poseArray.poses))
+        
+            self.panelReportFsm = 1
+        
+        elif self.panelReportFsm == 1:
+            # Report total pose points
+            self.toPanelMsg.irobcmd = 'pnts,' + str(len(self.smoothPath_msg.poses))
+            
+            self.panelReportFsm = 2
+            
+        elif self.panelReportFsm == 2:
+            # Report connection status
+            self.toPanelMsg.irobcmd = 'ping,0000'
+            
+            self.panelReportFsm = 0
+        
+        self.pubToPanelNode.publish(self.toPanelMsg)
 
 def main(args=None):
     rclpy.init()
