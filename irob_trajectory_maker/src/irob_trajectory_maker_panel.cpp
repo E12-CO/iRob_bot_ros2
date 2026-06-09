@@ -48,7 +48,7 @@ namespace irob_trajec_maker_panel
 			//qLabelPositionX_	= new QLabel("X: 0.0");
 			//qLabelPositionY_	= new QLabel("Y: 0.0");
 			qLabelPosePoints_	= new QLabel("Total Pose points: 0");
-			qLabelRobotState_	= new QLabel("Status: OK");
+			qLabelRobotState_	= new QLabel("Status: Disconnected");
 			
 			qLabelPoseNumber_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 			//qLabelPositionX_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -155,6 +155,14 @@ namespace irob_trajec_maker_panel
 					std::placeholders::_1)
 			);
 		
+		// Initialize the timer loop
+		timer_ = nRvizNode->create_wall_timer(
+			std::chrono::milliseconds(1000),
+			std::bind(
+				&TrajectoryPanel::vIrobBackendAliveCheck,
+				this)
+		);
+		
 	}
 	
 	void TrajectoryPanel::vIrobBackendCallbackHandler(const irob_msgs::msg::IrobCmdMsg::SharedPtr backendMsg){
@@ -178,10 +186,17 @@ namespace irob_trajec_maker_panel
 			updateStr += backendData;
 			qLabelPosePoints_->setText(QString(updateStr.c_str()));
 		}else if(backendCmd == "ping"){
-			
-			
+			qLabelRobotState_->setText(QString("Status: Connected"));
+			IsConnected = true;
 		}
 		
+	}
+	
+	void TrajectoryPanel::vIrobBackendAliveCheck(){
+		if(IsConnected)
+			IsConnected = false;
+		else
+			qLabelRobotState_->setText(QString("Status: Disconnected"));
 	}
 	
 	void TrajectoryPanel::vButtonUndoTrajectory(){
