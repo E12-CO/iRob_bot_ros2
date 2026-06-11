@@ -16,13 +16,11 @@ from irob_msgs.msg import IrobCmdMsg
 import numpy as np
 from ccma import CCMA
 
-import os, sys, select, termios, tty
-
-settings = termios.tcgetattr(sys.stdin)
+import os, sys, select
 
 class PathInterpolator(Node):
     def __init__(self):
-        super().__init__('path_interpolator', namespace='r1')
+        super().__init__('path_interpolator')
         self.linearPreviewPub_  = self.create_publisher(Path, 'interpolated_path', 10)
         self.smoothPreviewPub_  = self.create_publisher(Path, 'smooth_path', 10)
         self.smoothPathPub_     = self.create_publisher(Path, 'path', 10) 
