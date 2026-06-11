@@ -80,6 +80,12 @@ namespace irob_trajec_maker_panel
 			
 			void vIrobBackendCallbackHandler(const irob_msgs::msg::IrobCmdMsg::SharedPtr backendMsg);
 		
+			// Wall timer for connection status check of backend to panel 
+			rclcpp::TimerBase::SharedPtr timer_;
+			void vIrobBackendAliveCheck();
+			
+			bool IsConnected;
+		
 		private Q_SLOTS:
 		
 			// Button callback
