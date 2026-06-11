@@ -41,7 +41,7 @@
 
 // Define Feedback Loop time 
 #define LOOP_TIME_MIL   50 // 50 millisec -> 20Hz
-#define LOOP_TIME_SEC	LOOP_TIME_MIL/1000 // Loop time in second
+#define LOOP_TIME_SEC	(LOOP_TIME_MIL/1000.0f) // Loop time in second
 
 #define CHOOSE_MIN(x,y)	((x < y) ? x : y)
 #define CAP_HIGH(x,c)	((x > c) ? c : x)
@@ -99,33 +99,41 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	// Use odom transform instead of map transform
 	bool use_odom_tf_only = false;
 	
-	// Lookahead distance
-	double lookahead_dist;
+	typedef struct{
+		// Global velocity and acceleration limit
+		float f32WalkAccelMax;
+		float f32WalkVelMax;
+		float f32WalkVelCurveMin; // <- minimum velocity when appraching the curve
+		
+		// For pure pursuit traker
+		float f32LookaheadDistance;
+		uint32_t u32LookaheadFeedforwardPoints;
+		
+		// For goal appraching PID controller 
+		float f32WalkKp;
+		float f32WalkKi;
+		float f32WalkKd;
+	}tWalkParameters;
 	
-	// Goal tolerance 
-	double walk_goal_tolerance;
-	double rotate_goal_tolerance;
+	tWalkParameters tWalkControlParameters;
 	
-	// Max linear velocity
-	double max_vel;
+	typedef struct{
+		// For orientation PID controller
+		float f32RotateVelMax;
+		
+		float f32RotateKp;
+		float f32RotateKi;
+		float f32RotateKd;
+	}tRotateParameters;
 	
-	// Velocity filter
-	double walk_vel_filter;
-
-	double heading_velocity_braking_ratio;
-	uint32_t lookahead_ff_points = 0;
+	tRotateParameters tRotateControlParameters;
 	
-	double walkKp;
-	double walkKi;
-	double walkKd;
-	double walkMax;
-	double walkMin;
+	typedef struct{
+		float f32WalkGoalTolerance;
+		float f32RotateGoalTolerance;
+	}tGoalPoseTolerance;
 	
-	double rotateKp;
-	double rotateKi;
-	double rotateKd;
-	double rotateMax;
-	
+	tGoalPoseTolerance tGoalToleranceParameters;
 	
 	irob_rbc_maneuv3r_tracker() : Node("iRob_maneuv3r_tracker"){
 		RCLCPP_INFO(
@@ -133,6 +141,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 			"Robot Club Engineering KMITL : Starting iRob maneuv3r tracker..."
 			);
 		
+		// ROS tf related 
 		declare_parameter("map_frame_id", "map");
 		get_parameter("map_frame_id", map_frame_id);
 		
@@ -145,39 +154,49 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		declare_parameter("use_odom_tf_only", false);
 		get_parameter("use_odom_tf_only", use_odom_tf_only);
 		
-		declare_parameter("lookahead_distance", 1.0);
-		get_parameter("lookahead_distance", lookahead_dist);
 		
+		// Walk Min-Max parameters
+		declare_parameter("walk_max_accel", 1.0f);
+		get_parameter("walk_max_accel", tWalkControlParameters.f32WalkAccelMax);
+		declare_parameter("walk_max_vel", 1.0f);
+		get_parameter("walk_max_vel", tWalkControlParameters.f32WalkVelMax);
+		declare_parameter("walk_min_vel", 0.1f);
+		get_parameter("walk_min_vel", tWalkControlParameters.f32WalkVelCurveMin);
+		
+		// walk pure pursuit
+		declare_parameter("lookahead_distance", 1.0f);
+		get_parameter("lookahead_distance", tWalkControlParameters.f32LookaheadDistance);
 		declare_parameter("lookahead_ff_points", 10);
-		get_parameter("lookahead_ff_points", lookahead_ff_points);
+		get_parameter("lookahead_ff_points", tWalkControlParameters.u32LookaheadFeedforwardPoints);
 		
-		declare_parameter("walk_kp", 1.0);
-		get_parameter("walk_kp", walkKp);
-		declare_parameter("walk_ki", 0.0);
-		get_parameter("walk_ki", walkKi);
-		declare_parameter("walk_kd", 0.0);
-		get_parameter("walk_kd", walkKd);
+		// Walk PID
+		declare_parameter("walk_kp", 1.0f);
+		get_parameter("walk_kp", tWalkControlParameters.f32WalkKp);
+		declare_parameter("walk_ki", 0.0f);
+		get_parameter("walk_ki", tWalkControlParameters.f32WalkKi);
+		declare_parameter("walk_kd", 0.0f);
+		get_parameter("walk_kd", tWalkControlParameters.f32WalkKd);
 		
-		declare_parameter("walk_max_vel", 1.0);
-		get_parameter("walk_max_vel", walkMax);
-		declare_parameter("walk_min_vel", 0.1);
-		get_parameter("walk_min_vel", walkMin);
-
-
-		declare_parameter("walk_goal_tolerance", 0.01);
-		get_parameter("walk_goal_tolerance", walk_goal_tolerance);
 		
-		declare_parameter("rotate_kp", 1.0);
-		get_parameter("rotate_kp", rotateKp);
-		declare_parameter("rotate_ki", 0.0);
-		get_parameter("rotate_ki", rotateKi);
-		declare_parameter("rotate_kd", 0.0);
-		get_parameter("rotate_kd", rotateKd);
-		declare_parameter("rotate_max_vel", 3.1415);
-		get_parameter("rotate_max_vel", rotateMax);
-		declare_parameter("rotate_goal_tolerance", 0.174533);// Default 10 degree
-		get_parameter("rotate_goal_tolerance", rotate_goal_tolerance);
+		// Rotate Min-Max parameters
+		declare_parameter("rotate_max_vel", 3.1415f);
+		get_parameter("rotate_max_vel", tRotateControlParameters.f32RotateVelMax);
 		
+		// Rotate PID 
+		declare_parameter("rotate_kp", 1.0f);
+		get_parameter("rotate_kp", tRotateControlParameters.f32RotateKp);
+		declare_parameter("rotate_ki", 0.0f);
+		get_parameter("rotate_ki", tRotateControlParameters.f32RotateKi);
+		declare_parameter("rotate_kd", 0.0f);
+		get_parameter("rotate_kd", tRotateControlParameters.f32RotateKd);
+		
+		// Goal checker
+		declare_parameter("walk_goal_tolerance", 0.01f);
+		get_parameter("walk_goal_tolerance", tGoalToleranceParameters.f32WalkGoalTolerance);
+		declare_parameter("rotate_goal_tolerance", 0.174533f);// Default 10 degree
+		get_parameter("rotate_goal_tolerance", tGoalToleranceParameters.f32RotateGoalTolerance);
+		
+		// Check if we will use the transform of odom->base_link instead of map->base_link
 		if(use_odom_tf_only == true)
 			map_frame_id = odom_frame_id;
 		
@@ -322,7 +341,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					
 				// If found the next suitable Pose
 				// Update setpoint to that Pose
-				if(look_distance >= lookahead_dist){					
+				if(look_distance >= tWalkControlParameters.f32LookaheadDistance){					
 					next_pose = c;
 
 					RCLCPP_DEBUG(
@@ -359,20 +378,26 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
         pubCarrotMark->publish(carrotMark);
 	}
 	
-	uint32_t feedforward_points = 0;
-	uint32_t remain_poses = 0;
-	float angleCost;
-	float finalCost;
+	uint32_t u32FeedforwardPoints = 0;
+	uint32_t u32RemainPoses = 0;
+	float f32AngleCost;
+	float f32FinalCost;
 	
-	float calculated_cmd_vel; 
+	float f32CalculatedFeedForwardVel; 
+	float f32PrevVelCmd = 0.0f;
+	float f32CurrentAccel = 0.0f;
 	
 	void irob_lookaheadFeedforward(){
-		remain_poses = path_Length - current_pose;
+		u32RemainPoses = path_Length - current_pose;
 		
 		// determine how many ff points we can use
 		// If the lookahead feedforward points is more than the remaining poses
 		// chose the least one instaed.
-		feedforward_points = CHOOSE_MIN(lookahead_ff_points, remain_poses);
+		u32FeedforwardPoints = 
+			CHOOSE_MIN(
+				tWalkControlParameters.u32LookaheadFeedforwardPoints, 
+				u32RemainPoses
+			);
 		
 		// Accumulate the angle cost
 		// from the angle of 0->1 & 1->2, 1->2 & 2->3, 2->3 & 3->4 and so on
@@ -380,9 +405,9 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		// lookahead 4 points produce 2 angles
 		// lookahead 5 points produce 3 angles
 		// lookahead n points produce n-2 angles
-		angleCost = 0.0f;
-		for(uint32_t i=0; i < (feedforward_points - 2); i++){
-			angleCost += abs(
+		f32AngleCost = 0.0f;
+		for(uint32_t i=0; i < (u32FeedforwardPoints - 2); i++){
+			f32AngleCost += abs(
 				atan2(
 					pathMsg.poses[current_pose + i + 1].pose.position.y - pathMsg.poses[current_pose + i].pose.position.y ,
 					pathMsg.poses[current_pose + i + 1].pose.position.x - pathMsg.poses[current_pose + i].pose.position.x
@@ -393,34 +418,36 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				)
 			);
 		}
-		
-		// Also add the angle cost from the current position to the feed forward
-		// angleCost += abs(
-			// atan2(
-				// pathMsg.poses[current_pose].pose.position.y - poseFeedback.transform.translation.y,
-				// pathMsg.poses[current_pose].pose.position.x - poseFeedback.transform.translation.x
-			// ) - 
-			// atan2(
-				// pathMsg.poses[current_pose + 1].pose.position.y - pathMsg.poses[current_pose].pose.position.y ,
-				// pathMsg.poses[current_pose + 1].pose.position.x - pathMsg.poses[current_pose].pose.position.x
-			// )
-		// );
 	
 		RCLCPP_DEBUG(
 			this->get_logger(),
-			"Angle Cost %.02f", angleCost
+			"Angle Cost %.02f", f32AngleCost
 		);
 	
-		// Convert the cost to exponential dekay
-		finalCost = 1 / exp(angleCost);
-		finalCost = round(finalCost * 100.0) / 100.0;
+		// Convert the cost to exponential decay
+		f32FinalCost = 1 / exp(f32AngleCost);
+		f32FinalCost = round(f32FinalCost * 100.0) / 100.0;
 		
-		calculated_cmd_vel = walkMax * finalCost;// Scale the max speed by the exponential decay
-		calculated_cmd_vel = CAP_LOW(calculated_cmd_vel, walkMin);// Prevent the velocity for being too small
+		f32CalculatedFeedForwardVel = tWalkControlParameters.f32WalkVelMax * f32FinalCost;// Scale the max speed by the exponential decay
+		f32CalculatedFeedForwardVel = 
+			CAP_LOW(
+				f32CalculatedFeedForwardVel, 
+				tWalkControlParameters.f32WalkVelCurveMin
+			);// Prevent the velocity for being too small
+			
+		// Acceleration limit
+		f32CurrentAccel = (f32CalculatedFeedForwardVel - f32PrevVelCmd) / LOOP_TIME_SEC;// dV/dt
+		f32CurrentAccel = 
+			CAP_HIGH(
+				CAP_LOW(f32CurrentAccel, -tWalkControlParameters.f32WalkAccelMax),
+				tWalkControlParameters.f32WalkAccelMax
+			);// Cap the min and max acceleration
+		f32CalculatedFeedForwardVel = f32PrevVelCmd + (f32CurrentAccel * LOOP_TIME_SEC);// Integrate the acceleration back to velocity
+		f32PrevVelCmd = f32CalculatedFeedForwardVel;// Next control cycle will remember the previous velocity command	
 			
 		RCLCPP_DEBUG(
 			this->get_logger(),
-			"Command Vel %.02f", calculated_cmd_vel
+			"Command Vel %.02f", f32CalculatedFeedForwardVel
 		);
 			
 	}
@@ -433,7 +460,6 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	
 	// Velocity control
 	double cVel, cHeading, cVelAz;
-	double fVel;
 	
 	// buffer for transform stamped to be used as position feedback
 	geometry_msgs::msg::TransformStamped poseFeedback;
@@ -510,19 +536,20 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					
 					// 2. Look for next Setpoint
 					irob_updateCarrot();
-					 
+					
+					// 3. Calculate velocity with feed forward control
 					irob_lookaheadFeedforward(); 
 					 
-					cVel = calculated_cmd_vel;
+					cVel = f32CalculatedFeedForwardVel;
 				}else{
-					// Else if the goal Pose is the last one, use PID controller to approach the goal
-					walkIntg += eDist * walkKi;
+					// 4. Else if the goal Pose is the last one, use PID controller to approach the goal
+					walkIntg += eDist * tWalkControlParameters.f32WalkKi;
 				
-					walkDiff = (eDist - prevDist) * walkKd;
+					walkDiff = (eDist - prevDist) * tWalkControlParameters.f32WalkKd;
 					prevDist = eDist;
 					
 					cVel =
-						(eDist * walkKp) 	+
+						(eDist * tWalkControlParameters.f32WalkKp) 	+
 						walkIntg			+
 						walkDiff			; 
 						
@@ -532,11 +559,12 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					);	
 				}
 				
-				if(cVel > walkMax)
-					cVel = walkMax;
+				// Velocity envelope
+				if(cVel > tWalkControlParameters.f32WalkVelMax)
+					cVel = tWalkControlParameters.f32WalkVelMax;
 				
-				if(cVel < -walkMax)
-					cVel = -walkMax;
+				if(cVel < -tWalkControlParameters.f32WalkVelMax)
+					cVel = -tWalkControlParameters.f32WalkVelMax;
 
 				// 5. Update next setpoint
 				if(next_pose != current_pose){
@@ -553,22 +581,22 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 						eOrient -= 6.283185;
 				}
 				
-				rotateIntg += eOrient * rotateKi;
+				rotateIntg += eOrient * tRotateControlParameters.f32RotateKi;
 				
-				rotateDiff = (eOrient - prevOrient) * rotateKd;
+				rotateDiff = (eOrient - prevOrient) * tRotateControlParameters.f32RotateKd;
 				prevOrient = eOrient;
 				
 				cVelAz = 
-					(eOrient * rotateKp)+
+					(eOrient * tRotateControlParameters.f32RotateKp)+
 					rotateIntg			+
 					rotateDiff			;
 				
 				
 				// Angular velocity envelope
-				if(cVelAz > rotateMax)
-					cVelAz = rotateMax;
-				if(cVelAz < -rotateMax)
-					cVelAz = -rotateMax;
+				if(cVelAz > tRotateControlParameters.f32RotateVelMax)
+					cVelAz = tRotateControlParameters.f32RotateVelMax;
+				if(cVelAz < -tRotateControlParameters.f32RotateVelMax)
+					cVelAz = -tRotateControlParameters.f32RotateVelMax;
 				
 				// 
 				RCLCPP_DEBUG(
@@ -579,8 +607,8 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				
 				irob_drawCarrot();
 				
-				// Goal checker 
-				if((abs(eDist) <= walk_goal_tolerance)){						
+				// Goal checkers
+				if((abs(eDist) <= tGoalToleranceParameters.f32WalkGoalTolerance)){						
 					cVel = 0.0;
 					walkIntg = 0.0;
 					
@@ -598,11 +626,12 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					}
 				}
 				
-				if(abs(eOrient) <= rotate_goal_tolerance){
+				if(abs(eOrient) <= tGoalToleranceParameters.f32RotateGoalTolerance){
 					cVelAz = 0.0;
 					rotateIntg = 0.0;
 				}
 				
+				// Publish path as a vector line from robot center to the carrot point
 				pubPath->publish(pathTargetMsg);
 			}
 			break;
@@ -634,16 +663,16 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	}
 	
 	void maneuv3r_update_Cmdvel(
-		double vel, 
-		double heading, 
-		double az) {
+		float vel, 
+		float heading, 
+		float az) {
 			
-	  // Convert the R and Theta (polar coordinates) into X and Y velocity component (Cartesian coordinates).
-	  twist.linear.x 	= vel * cos(heading);
-	  twist.linear.y 	= vel * sin(heading);
+		// Convert the R and Theta (polar coordinates) into X and Y velocity component (Cartesian coordinates).
+		twist.linear.x 	= vel * cos(heading);
+		twist.linear.y 	= vel * sin(heading);
 
-	  // Commading angular velocity.
-	  twist.angular.z 	= az;
+		// Commading angular velocity.
+		twist.angular.z 	= az;
 	}
 
 	

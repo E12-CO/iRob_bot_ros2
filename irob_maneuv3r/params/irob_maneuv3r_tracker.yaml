@@ -1,22 +1,35 @@
 iRob_maneuv3r_tracker:
     ros__parameters:
+        # TF2 related parameters
         map_frame_id: "map"
-        odom_frame_id: "odom_r1"
-        robot_frame_id: "chassis_r1"
+        odom_frame_id: "odom"
+        robot_frame_id: "base_link_r1"
         use_odom_tf_only: false
-
-        lookahead_distance: 0.6
-        lookahead_ff_points: 10
-
-        walk_kp: 1.3
-        walk_ki: 0.001
-        walk_kd: 0.0
-        walk_max_vel: 1.1
-        walk_min_vel: 0.4
-        walk_goal_tolerance: 0.04
         
-        rotate_kp: 2.5
-        rotate_ki: 0.0
-        rotate_kd: 0.0
+        # Walk controller parameters
+        # Walk min-max parameters
+        walk_max_accel: 1.0
+        walk_max_vel: 1.0
+        walk_min_vel: 0.1
+        
+        # Walk pure-pursuit parameters
+        lookahead_distance: 0.6
+        lookahead_ff_points: 8
+        
+        # Walk PID parameters
+        walk_kp: 1.0
+        walk_ki: 0.001
+        walk_kd: 0.01
+        
+        # Rotate controller parameters
+        # Rotate min-max parameters
         rotate_max_vel: 1.1
+        
+        # Rotate PID parameters
+        rotate_kp: 1.0
+        rotate_ki: 0.0001
+        rotate_kd: 0.0
+        
+        # Goal checker parameter
+        walk_goal_tolerance: 0.04
         rotate_goal_tolerance: 0.035
