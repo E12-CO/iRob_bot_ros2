@@ -60,10 +60,6 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	// iRob status message
 	rclcpp::Publisher<irob_msgs::msg::IrobCmdMsg>::SharedPtr		pubiRobStat;
 	
-	// Path publisher 
-	rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr			pubPath;
-	nav_msgs::msg::Path	pathTargetMsg;
-	
 	// Sub
 	// Path command (trajectory)
 	rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr	subPath;
@@ -86,8 +82,12 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
 	
 	// Visualization markers
+	// Carrot
 	rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr	pubCarrotMark;
 	visualization_msgs::msg::Marker	carrotMark;
+	// Velocity vector
+	rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr	pubVelVector;
+	visualization_msgs::msg::Marker velVectorMark;
 	
 	/* PARAMETERS */
 	
@@ -208,20 +208,11 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		pubMotion = create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
 		
 		pubiRobStat = create_publisher<irob_msgs::msg::IrobCmdMsg>("irob_stat", 10);
-		
-		// Set up target path publisher
-		pubPath = 
-			create_publisher<nav_msgs::msg::Path>(
-				"irob_target_vect",
-				10
-			);
-			
-		// Set the header frane_id of the Path message
-		pathTargetMsg.header.frame_id = map_frame_id;	
-		pathTargetMsg.poses.resize(2);
 				
 		// Visualization
-		pubCarrotMark = create_publisher<visualization_msgs::msg::Marker>("carrot", 10);		
+		pubCarrotMark 	= create_publisher<visualization_msgs::msg::Marker>("carrot", 10);		
+		pubVelVector 	= create_publisher<visualization_msgs::msg::Marker>("vel_vector", 10);
+		
 		
 		subPath = 
 			create_subscription<nav_msgs::msg::Path>(
@@ -362,20 +353,49 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	}
 	
 	void irob_drawCarrot(){
-		carrotMark.header.frame_id = "map";
+		carrotMark.header.frame_id = map_frame_id;
 		carrotMark.header.stamp = this->get_clock()->now();
+		carrotMark.ns = "carrot";
 		carrotMark.id = 0;
 		carrotMark.type = carrotMark.SPHERE;
 		carrotMark.action = carrotMark.ADD;
 		carrotMark.scale.x = 0.5;
 		carrotMark.scale.y = 0.5;
+		carrotMark.scale.z = 0.5;
 		carrotMark.color.a = 1.0;
         carrotMark.color.r = 1.0;
-        carrotMark.color.r = 0.5;
+        carrotMark.color.g = 0.5;
         carrotMark.pose.position.x = pathMsg.poses[current_pose].pose.position.x;
         carrotMark.pose.position.y = pathMsg.poses[current_pose].pose.position.y;
         carrotMark.pose.position.z = 0.5;
         pubCarrotMark->publish(carrotMark);
+	}
+	
+	void irob_drawVelVector(){
+		velVectorMark.header.frame_id = map_frame_id;
+		velVectorMark.header.stamp = this->get_clock()->now();
+		velVectorMark.ns = "vel_vector";
+		velVectorMark.id = 0;
+		velVectorMark.type = velVectorMark.ARROW;
+		velVectorMark.action = velVectorMark.ADD;
+		velVectorMark.scale.x = cVel;
+		velVectorMark.scale.y = 0.1;
+		velVectorMark.scale.z = 0.1;
+		
+		velVectorMark.color.a = 1.0;
+        velVectorMark.color.b = 1.0;
+        velVectorMark.color.g = 0.5;
+		
+		// Position of marker in the middle of the base link
+		velVectorMark.pose.position.x = poseFeedback.transform.translation.x;
+		velVectorMark.pose.position.y = poseFeedback.transform.translation.y;
+		velVectorMark.pose.position.z = 1.0;
+		// Marker orientation is based on the heading
+		tf2::Quaternion vecQ;
+		vecQ.setRPY(0.0, 0.0, cHeading);
+		velVectorMark.pose.orientation = tf2::toMsg(vecQ);
+		
+		pubVelVector->publish(velVectorMark);
 	}
 	
 	uint32_t u32FeedforwardPoints = 0;
@@ -507,11 +527,6 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				if(irob_getPose() < 0)
 					break;
 				
-				pathTargetMsg.poses[0].pose.position.x = 
-					poseFeedback.transform.translation.x;
-				pathTargetMsg.poses[0].pose.position.y = 
-					poseFeedback.transform.translation.y;
-				
 				// Calculate Euclidean distance
 				// Dx and Dy
 				diff_x = poseSetpoint.position.x - poseFeedback.transform.translation.x;
@@ -598,14 +613,16 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				if(cVelAz < -tRotateControlParameters.f32RotateVelMax)
 					cVelAz = -tRotateControlParameters.f32RotateVelMax;
 				
-				// 
+				// Velocity and Heading debug
 				RCLCPP_DEBUG(
 					this->get_logger(),
 					"Vel %f | Heading %f ",
 					cVel, cHeading
 				);
 				
+				// Visualization update
 				irob_drawCarrot();
+				irob_drawVelVector();
 				
 				// Goal checkers
 				if((abs(eDist) <= tGoalToleranceParameters.f32WalkGoalTolerance)){						
@@ -630,9 +647,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					cVelAz = 0.0;
 					rotateIntg = 0.0;
 				}
-				
-				// Publish path as a vector line from robot center to the carrot point
-				pubPath->publish(pathTargetMsg);
+
 			}
 			break;
 		}
