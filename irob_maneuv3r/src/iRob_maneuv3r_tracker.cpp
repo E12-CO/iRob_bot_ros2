@@ -515,6 +515,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				twist.angular.z = 0.0;
 				walkIntg = 0.0;
 				rotateIntg = 0.0;
+				f32PrevVelCmd = 0.0;
 				if(irob_cmd == "run"){
 					loop_fsm = 1;
 				}
