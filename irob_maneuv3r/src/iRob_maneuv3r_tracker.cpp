@@ -135,6 +135,8 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	
 	tGoalPoseTolerance tGoalToleranceParameters;
 	
+	float f32MinTimeToStop = 0.0f;
+	
 	irob_rbc_maneuv3r_tracker() : Node("iRob_maneuv3r_tracker"){
 		RCLCPP_INFO(
 			this->get_logger(), 
@@ -162,6 +164,9 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		get_parameter("walk_max_vel", tWalkControlParameters.f32WalkVelMax);
 		declare_parameter("walk_min_vel", 0.1f);
 		get_parameter("walk_min_vel", tWalkControlParameters.f32WalkVelCurveMin);
+		
+		// Minimum time that the robot can decelerate from the Max velocity to zero
+		f32MinTimeToStop = tWalkControlParameters.f32WalkVelMax / tWalkControlParameters.f32WalkAccelMax; 
 		
 		// walk pure pursuit
 		declare_parameter("lookahead_distance", 1.0f);
@@ -321,14 +326,14 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	size_t next_pose = 0;
 	void irob_updateCarrot(){
 		// Only look for next pose when the current pose is not the last pose
-		if(current_pose < path_Length){
+		if(current_pose < (path_Length - 1)){
 			// Look forward for the closest point to the lookahead distance from current setpoint
 			for(size_t c=current_pose; c < path_Length; c++){
 				look_distance = 
 					irob_euclideanDistance(
 						pathMsg.poses[c].pose.position.y - poseFeedback.transform.translation.y,
 						pathMsg.poses[c].pose.position.x - poseFeedback.transform.translation.x
-					);
+					);	
 					
 				// If found the next suitable Pose
 				// Update setpoint to that Pose
@@ -348,6 +353,11 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 			
 			// If not found, use next Pose
 			next_pose = current_pose + 1;
+		}else{
+			RCLCPP_INFO(
+				this->get_logger(),
+				"No more pose!"
+			);
 		}
 
 	}
@@ -378,7 +388,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		velVectorMark.id = 0;
 		velVectorMark.type = velVectorMark.ARROW;
 		velVectorMark.action = velVectorMark.ADD;
-		velVectorMark.scale.x = cVel;
+		velVectorMark.scale.x = f32FinalCmdVel;
 		velVectorMark.scale.y = 0.1;
 		velVectorMark.scale.z = 0.1;
 		
@@ -409,6 +419,10 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	
 	void irob_lookaheadFeedforward(){
 		u32RemainPoses = path_Length - current_pose;
+		
+		// Return if the remaining lookahead point is less than 3 points
+		if(u32RemainPoses < 3)
+			return;
 		
 		// determine how many ff points we can use
 		// If the lookahead feedforward points is more than the remaining poses
@@ -467,9 +481,71 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 			
 		RCLCPP_DEBUG(
 			this->get_logger(),
-			"Command Vel %.02f", f32CalculatedFeedForwardVel
+			"Command Vel %.2f", f32CalculatedFeedForwardVel
 		);
 			
+	}
+	
+	float f32RemainingDistanceToGoal = 0.0f;
+	
+	// Calculate the segmented total length to the goal pose
+	void irob_calculateRemainDistanceToGoal(){
+		f32RemainingDistanceToGoal = 0.0f;
+		if(current_pose < (path_Length - 1)){
+			// Calculate total distance to goal if we have at least two more poses
+			for(uint32_t i=current_pose; i < (path_Length - 1); i++){
+				f32RemainingDistanceToGoal +=
+					(float)irob_euclideanDistance(
+						pathMsg.poses[i+1].pose.position.y - pathMsg.poses[i].pose.position.y,
+						pathMsg.poses[i+1].pose.position.x - pathMsg.poses[i].pose.position.x
+					);
+			}
+			
+			RCLCPP_DEBUG(
+				this->get_logger(),
+				"Remaining segmented length : %.2f meters",
+				f32RemainingDistanceToGoal
+			);
+			
+		}else{
+			// Calculate the distance to goal (last carrot) from robot
+			f32RemainingDistanceToGoal = f32DistanceToCarrot;
+		}
+	}
+	
+	float f32CurrentTimeToStop = 0.0f;
+	float f32ETA = 0.0f;
+	
+	float f32HeadingToGoal = 0.0f;
+	
+	float f32FinalCmdVel = 0.0f;
+	float f32PrevApproachCmdVel = 0.0f;
+	bool bGoalLocked = false;
+	void irob_goalPoseApproacher(){	
+		// Calculate the estimated time of arrival to the goal pose with the current velocity
+		f32ETA = f32RemainingDistanceToGoal / (f32PrevApproachCmdVel + 0.000001f);
+		// Calculate the estimated time that robot will take to completely safely stop with the current velocity
+		f32CurrentTimeToStop = f32PrevApproachCmdVel/tWalkControlParameters.f32WalkAccelMax;
+		
+		RCLCPP_INFO(
+			this->get_logger(),
+			"Time To Goal %.3f | Time To Stop %.3f ",
+			f32ETA, f32CurrentTimeToStop
+		);
+		
+		// Check if we have reasonable time to 
+		if(f32ETA < f32CurrentTimeToStop){
+			bGoalLocked = true;
+			// Time to arrive is sooner than time to stop, we start braking immediately
+			//f32ETA = CAP_LOW(f32ETA, f32MinTimeToStop);
+			// From ETA to goal, to the command velocity by the limited accelration
+			f32FinalCmdVel = (tWalkControlParameters.f32WalkAccelMax * f32ETA) + 0.01f;// Added 1cm/s bias to fight the static friction
+		}else{
+			if(bGoalLocked == false)
+				f32FinalCmdVel = f32CalculatedFeedForwardVel;
+		}
+		
+		f32PrevApproachCmdVel = f32FinalCmdVel;
 	}
 	
 	// Current Pose
@@ -479,7 +555,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	uint8_t loop_fsm = 0;
 	
 	// Velocity control
-	double cVel, cHeading, cVelAz;
+	double cHeading, cVelAz;
 	
 	// buffer for transform stamped to be used as position feedback
 	geometry_msgs::msg::TransformStamped poseFeedback;
@@ -494,10 +570,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	double del_heading;
 	
 	// PID for walk
-	double eDist;
-	double walkIntg;
-	double walkDiff;
-	double prevDist;
+	float f32DistanceToCarrot = 0.0f;
 	
 	// PID for rotate
 	double eOrient;
@@ -513,9 +586,10 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				twist.linear.x = 0.0;
 				twist.linear.y = 0.0;
 				twist.angular.z = 0.0;
-				walkIntg = 0.0;
 				rotateIntg = 0.0;
-				f32PrevVelCmd = 0.0;
+				f32PrevVelCmd = 0.0f;
+				bGoalLocked = false;
+				f32PrevApproachCmdVel = 0.0f;
 				if(irob_cmd == "run"){
 					loop_fsm = 1;
 				}
@@ -528,7 +602,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				if(irob_getPose() < 0)
 					break;
 				
-				// Calculate Euclidean distance
+				// Calculate Euclidean distance from current position to the lookahead point (carrot)
 				// Dx and Dy
 				diff_x = poseSetpoint.position.x - poseFeedback.transform.translation.x;
 				diff_y = poseSetpoint.position.y - poseFeedback.transform.translation.y;
@@ -541,46 +615,30 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					)  - fYaw;
 
 				// Finally calculate the Euclidean distance
-				eDist = irob_euclideanDistance(diff_x, diff_y);
+				f32DistanceToCarrot = irob_euclideanDistance(diff_x, diff_y);
 				
 				// Calculate Yaw setpoint
 				tf2::fromMsg(poseSetpoint.orientation, quat_tf);
 				spYaw = tf2::getYaw(quat_tf);
+
+				// 2. Look for next Setpoint
+				irob_updateCarrot();
 				
-				// If the goal Pose is not the last one, use velocity scaling
-				if(next_pose < (path_Length - 1)){
-					
-					// 2. Look for next Setpoint
-					irob_updateCarrot();
-					
-					// 3. Calculate velocity with feed forward control
-					irob_lookaheadFeedforward(); 
-					 
-					cVel = f32CalculatedFeedForwardVel;
-				}else{
-					// 4. Else if the goal Pose is the last one, use PID controller to approach the goal
-					walkIntg += eDist * tWalkControlParameters.f32WalkKi;
+				// 3. Calculate velocity with feed forward control
+				irob_lookaheadFeedforward(); 
 				
-					walkDiff = (eDist - prevDist) * tWalkControlParameters.f32WalkKd;
-					prevDist = eDist;
-					
-					cVel =
-						(eDist * tWalkControlParameters.f32WalkKp) 	+
-						walkIntg			+
-						walkDiff			; 
-						
-					RCLCPP_INFO(
-						this->get_logger(),
-						"PID mode"
-					);	
-				}
+				// 4. Calculate the remaining distance from the robot to goal
+				irob_calculateRemainDistanceToGoal();
 				
+				// 5. Slow down when approach the goal pose
+				irob_goalPoseApproacher();
+
 				// Velocity envelope
-				if(cVel > tWalkControlParameters.f32WalkVelMax)
-					cVel = tWalkControlParameters.f32WalkVelMax;
+				if(f32FinalCmdVel > tWalkControlParameters.f32WalkVelMax)
+					f32FinalCmdVel = tWalkControlParameters.f32WalkVelMax;
 				
-				if(cVel < -tWalkControlParameters.f32WalkVelMax)
-					cVel = -tWalkControlParameters.f32WalkVelMax;
+				if(f32FinalCmdVel < -tWalkControlParameters.f32WalkVelMax)
+					f32FinalCmdVel = -tWalkControlParameters.f32WalkVelMax;
 
 				// 5. Update next setpoint
 				if(next_pose != current_pose){
@@ -617,8 +675,8 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				// Velocity and Heading debug
 				RCLCPP_DEBUG(
 					this->get_logger(),
-					"Vel %f | Heading %f ",
-					cVel, cHeading
+					"Vel %.2f | Heading %.4f ",
+					f32FinalCmdVel, cHeading
 				);
 				
 				// Visualization update
@@ -626,10 +684,9 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				irob_drawVelVector();
 				
 				// Goal checkers
-				if((abs(eDist) <= tGoalToleranceParameters.f32WalkGoalTolerance)){						
-					cVel = 0.0;
-					walkIntg = 0.0;
-					
+				if((abs(f32DistanceToCarrot) <= tGoalToleranceParameters.f32WalkGoalTolerance)){						
+					f32FinalCmdVel = 0.0;
+
 					if(next_pose >= (path_Length - 1)){
 						RCLCPP_INFO(
 							this->get_logger(),
@@ -654,7 +711,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		}
 		
 		maneuv3r_update_Cmdvel(
-			cVel,
+			f32FinalCmdVel,
 			cHeading,
 			cVelAz
 			);
