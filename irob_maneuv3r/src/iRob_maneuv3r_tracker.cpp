@@ -529,7 +529,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		// Calculate the estimated time that robot will take to completely safely stop with the current velocity
 		f32CurrentTimeToStop = f32PrevApproachCmdVel/tWalkControlParameters.f32BrakeAccelMax;
 		
-		RCLCPP_INFO(
+		RCLCPP_DEBUG(
 			this->get_logger(),
 			"Time To Goal %.3f | Time To Stop %.3f ",
 			f32ETA, f32CurrentTimeToStop
@@ -539,7 +539,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		if(f32ETA < f32CurrentTimeToStop){
 			bGoalLocked = true;
 			// Time to arrive is sooner than time to stop, we start braking immediately
-			//f32ETA = CAP_LOW(f32ETA, f32MinTimeToStop);
+
 			// From ETA to goal, to the command velocity by the limited accelration
 			f32FinalCmdVel = (tWalkControlParameters.f32WalkAccelMax * f32ETA) + 0.05f;// Added 5cm/s bias to fight the static friction
 		}else{
@@ -675,7 +675,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					cVelAz = -tRotateControlParameters.f32RotateVelMax;
 				
 				// Velocity and Heading debug
-				RCLCPP_INFO(
+				RCLCPP_DEBUG(
 					this->get_logger(),
 					"Vel %.2f | Heading %.4f ",
 					f32FinalCmdVel, cHeading
