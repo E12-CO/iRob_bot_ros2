@@ -104,6 +104,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		float f32WalkAccelMax;
 		float f32WalkVelMax;
 		float f32WalkVelCurveMin; // <- minimum velocity when appraching the curve
+		float f32BrakeAccelMax;
 		
 		// For pure pursuit traker
 		float f32LookaheadDistance;
@@ -164,9 +165,10 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		get_parameter("walk_max_vel", tWalkControlParameters.f32WalkVelMax);
 		declare_parameter("walk_min_vel", 0.1f);
 		get_parameter("walk_min_vel", tWalkControlParameters.f32WalkVelCurveMin);
-		
+		declare_parameter("brake_max_decel", 2.0f);
+		get_parameter("brake_max_decel", tWalkControlParameters.f32BrakeAccelMax);
 		// Minimum time that the robot can decelerate from the Max velocity to zero
-		f32MinTimeToStop = tWalkControlParameters.f32WalkVelMax / tWalkControlParameters.f32WalkAccelMax; 
+		f32MinTimeToStop = tWalkControlParameters.f32WalkVelMax / tWalkControlParameters.f32BrakeAccelMax; 
 		
 		// walk pure pursuit
 		declare_parameter("lookahead_distance", 1.0f);
@@ -369,9 +371,9 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		carrotMark.id = 0;
 		carrotMark.type = carrotMark.SPHERE;
 		carrotMark.action = carrotMark.ADD;
-		carrotMark.scale.x = 0.5;
-		carrotMark.scale.y = 0.5;
-		carrotMark.scale.z = 0.5;
+		carrotMark.scale.x = 0.3;
+		carrotMark.scale.y = 0.3;
+		carrotMark.scale.z = 0.3;
 		carrotMark.color.a = 1.0;
         carrotMark.color.r = 1.0;
         carrotMark.color.g = 0.5;
@@ -501,16 +503,16 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					);
 			}
 			
-			RCLCPP_DEBUG(
-				this->get_logger(),
-				"Remaining segmented length : %.2f meters",
-				f32RemainingDistanceToGoal
-			);
-			
-		}else{
-			// Calculate the distance to goal (last carrot) from robot
-			f32RemainingDistanceToGoal = f32DistanceToCarrot;
 		}
+		
+		// Also add the distance of robot to the carrot
+		f32RemainingDistanceToGoal += f32DistanceToCarrot;
+		
+		RCLCPP_DEBUG(
+			this->get_logger(),
+			"Remaining segmented distance to goal : %.2f meters",
+			f32RemainingDistanceToGoal
+		);
 	}
 	
 	float f32CurrentTimeToStop = 0.0f;
@@ -525,7 +527,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		// Calculate the estimated time of arrival to the goal pose with the current velocity
 		f32ETA = f32RemainingDistanceToGoal / (f32PrevApproachCmdVel + 0.000001f);
 		// Calculate the estimated time that robot will take to completely safely stop with the current velocity
-		f32CurrentTimeToStop = f32PrevApproachCmdVel/tWalkControlParameters.f32WalkAccelMax;
+		f32CurrentTimeToStop = f32PrevApproachCmdVel/tWalkControlParameters.f32BrakeAccelMax;
 		
 		RCLCPP_INFO(
 			this->get_logger(),
@@ -533,13 +535,13 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 			f32ETA, f32CurrentTimeToStop
 		);
 		
-		// Check if we have reasonable time to 
+		// Check if we have reasonable time to start braking
 		if(f32ETA < f32CurrentTimeToStop){
 			bGoalLocked = true;
 			// Time to arrive is sooner than time to stop, we start braking immediately
 			//f32ETA = CAP_LOW(f32ETA, f32MinTimeToStop);
 			// From ETA to goal, to the command velocity by the limited accelration
-			f32FinalCmdVel = (tWalkControlParameters.f32WalkAccelMax * f32ETA) + 0.01f;// Added 1cm/s bias to fight the static friction
+			f32FinalCmdVel = (tWalkControlParameters.f32WalkAccelMax * f32ETA) + 0.05f;// Added 5cm/s bias to fight the static friction
 		}else{
 			if(bGoalLocked == false)
 				f32FinalCmdVel = f32CalculatedFeedForwardVel;
@@ -612,7 +614,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					atan2(
 						diff_y,
 						diff_x
-					)  - fYaw;
+					);
 
 				// Finally calculate the Euclidean distance
 				f32DistanceToCarrot = irob_euclideanDistance(diff_x, diff_y);
@@ -673,7 +675,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 					cVelAz = -tRotateControlParameters.f32RotateVelMax;
 				
 				// Velocity and Heading debug
-				RCLCPP_DEBUG(
+				RCLCPP_INFO(
 					this->get_logger(),
 					"Vel %.2f | Heading %.4f ",
 					f32FinalCmdVel, cHeading
@@ -712,7 +714,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		
 		maneuv3r_update_Cmdvel(
 			f32FinalCmdVel,
-			cHeading,
+			cHeading - fYaw,
 			cVelAz
 			);
 		

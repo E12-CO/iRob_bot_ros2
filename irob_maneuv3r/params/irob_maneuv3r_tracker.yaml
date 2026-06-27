@@ -11,6 +11,7 @@ iRob_maneuv3r_tracker:
         walk_max_accel: 1.0
         walk_max_vel: 1.0
         walk_min_vel: 0.1
+        brake_max_decel: 2.0
         
         # Walk pure-pursuit parameters
         lookahead_distance: 0.6
