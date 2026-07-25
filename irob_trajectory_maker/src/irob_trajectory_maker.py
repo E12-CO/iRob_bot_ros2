@@ -20,7 +20,7 @@ import os, sys, select
 
 class PathInterpolator(Node):
     def __init__(self):
-        super().__init__('path_interpolator')
+        super().__init__('iRob_trajectory_maker')
         self.linearPreviewPub_  = self.create_publisher(Path, 'interpolated_path', 10)
         self.smoothPreviewPub_  = self.create_publisher(Path, 'smooth_path', 10)
         self.smoothPathPub_     = self.create_publisher(Path, 'path', 10) 
