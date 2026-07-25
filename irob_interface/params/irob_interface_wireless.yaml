@@ -1,0 +1,13 @@
+iRob_Interface:
+    ros__parameters:
+        ip_address:            "10.205.49.14"
+        robot_frame_id:         "base_link"
+        mouse_odom_frame_id:    "odom"
+        imu_frame_id:           "imu_link"
+        mag_sensor_topic:       "imu/mag"
+        imu_sensor_topic:       "imu/data_raw"
+        mouse_x_constant:       0.03
+        mouse_y_constant:       0.03
+        gyro_constant:          0.0010642
+        mag_constant:           0.08075
+        accel_constant:         0.000488
