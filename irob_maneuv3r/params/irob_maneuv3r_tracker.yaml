@@ -17,11 +17,6 @@ iRob_maneuv3r_tracker:
         lookahead_distance: 0.6
         lookahead_ff_points: 8
         
-        # Walk PID parameters
-        walk_kp: 1.0
-        walk_ki: 0.001
-        walk_kd: 0.01
-        
         # Rotate controller parameters
         # Rotate min-max parameters
         rotate_max_vel: 1.1

@@ -59,6 +59,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	
 	// iRob status message
 	rclcpp::Publisher<irob_msgs::msg::IrobCmdMsg>::SharedPtr		pubiRobStat;
+	irob_msgs::msg::IrobCmdMsg statMsg;
 	
 	// Sub
 	// Path command (trajectory)
@@ -109,11 +110,6 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		// For pure pursuit traker
 		float f32LookaheadDistance;
 		uint32_t u32LookaheadFeedforwardPoints;
-		
-		// For goal appraching PID controller 
-		float f32WalkKp;
-		float f32WalkKi;
-		float f32WalkKd;
 	}tWalkParameters;
 	
 	tWalkParameters tWalkControlParameters;
@@ -174,16 +170,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		declare_parameter("lookahead_distance", 1.0f);
 		get_parameter("lookahead_distance", tWalkControlParameters.f32LookaheadDistance);
 		declare_parameter("lookahead_ff_points", 10);
-		get_parameter("lookahead_ff_points", tWalkControlParameters.u32LookaheadFeedforwardPoints);
-		
-		// Walk PID
-		declare_parameter("walk_kp", 1.0f);
-		get_parameter("walk_kp", tWalkControlParameters.f32WalkKp);
-		declare_parameter("walk_ki", 0.0f);
-		get_parameter("walk_ki", tWalkControlParameters.f32WalkKi);
-		declare_parameter("walk_kd", 0.0f);
-		get_parameter("walk_kd", tWalkControlParameters.f32WalkKd);
-		
+		get_parameter("lookahead_ff_points", tWalkControlParameters.u32LookaheadFeedforwardPoints);		
 		
 		// Rotate Min-Max parameters
 		declare_parameter("rotate_max_vel", 3.1415f);
@@ -263,6 +250,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				this->get_logger(),
 				"Received empty path !"
 			);
+			irob_pub_stat("canceled");
 			
 			return;
 		}
@@ -290,8 +278,15 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 	void irob_cmd_callback(const irob_msgs::msg::IrobCmdMsg::SharedPtr irob_command){
 		irob_cmd = irob_command->irobcmd;
 		if(irob_cmd == "stop"){
+			irob_pub_stat("canceled");
 			loop_fsm = 0;
+			RCLCPP_WARN(this->get_logger(), "Goal canceled!");
 		}
+	}
+	
+	void irob_pub_stat(std::string stat_msg){
+		statMsg.irobcmd = stat_msg;
+		pubiRobStat->publish(statMsg);	
 	}
 	
 	// Lookup transform to get current pose
@@ -316,8 +311,8 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 			
 			loop_fsm = 0;
 			irob_cmd = "";
-			
-		  return -1;
+			irob_pub_stat("failed");
+			return -1;
 		}
 		
 		// Convert Quaternion to RPY to get Yaw (robot orientation)
@@ -599,6 +594,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 				bGoalLocked = false;
 				f32PrevApproachCmdVel = 0.0f;
 				if(irob_cmd == "run"){
+					irob_pub_stat("starting");
 					loop_fsm = 1;
 				}
 			}
@@ -700,7 +696,7 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 							this->get_logger(),
 							"Goal reached!"
 						);
-						
+						irob_pub_stat("done");
 						next_pose = 0;
 						current_pose = 0;
 						cVelAz = 0.0;
