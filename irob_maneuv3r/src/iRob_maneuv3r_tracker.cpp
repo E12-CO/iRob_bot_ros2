@@ -277,6 +277,12 @@ class irob_rbc_maneuv3r_tracker : public rclcpp::Node{
 		// Add first point from Path to setpoint
 		poseSetpoint = pathMsg.poses[0].pose;
 		
+		// Reset to initial value
+		rotateIntg = 0.0;
+		f32PrevVelCmd = 0.0f;
+		bGoalLocked = false;
+		f32PrevApproachCmdVel = 0.0f;
+		
 		irob_cmd = "run";
 	}
 	
