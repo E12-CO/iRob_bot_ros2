@@ -41,8 +41,38 @@ ament_target_dependencies(
 	${iRob_dependencies}
 )
 
+add_executable(iRob_interface_wireless
+	src/iRob_interface_wireless.cpp
+)
+
+target_link_libraries(
+	iRob_interface_wireless
+)
+
+ament_target_dependencies(
+	iRob_interface_wireless
+	${iRob_dependencies}
+)
+
+include_directories(
+  include
+)
+
+add_executable(iRob_interface_eth
+	src/iRob_interface_eth.cpp
+)
+
+target_link_libraries(
+	iRob_interface_eth
+)
+
+ament_target_dependencies(
+	iRob_interface_eth
+	${iRob_dependencies}
+)
+
 install(
-	TARGETS iRob_interface
+	TARGETS iRob_interface iRob_interface_wireless iRob_interface_eth
 	DESTINATION lib/${PROJECT_NAME}
 )
 

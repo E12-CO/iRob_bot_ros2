@@ -1,0 +1,15 @@
+iRob_ETH_Interface:
+    ros__parameters:
+        motor_0:
+            topic_name :    "motor_lf"
+            ip_address:     "192.168.1.16"
+            loop_rate:      "125HZ"
+            speed_kp:       1.0
+            speed_ki:       0.01
+            speed_kd:       0.001
+            speed_kff:      5.0
+            speed_min:      1.0
+            speed_max:      5000.0
+            encoder_cpr:    28
+            gear_ratio:     1.0
+        
