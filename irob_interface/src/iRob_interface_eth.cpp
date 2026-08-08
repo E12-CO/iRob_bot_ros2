@@ -32,9 +32,18 @@
 #define IROB_TCP_PORT			6767
 
 #define ROS_COMM_TIMEOUT		5 	// consider communication timeout when 5 cycle elapsed (100ms)
-
 #define VEL_CMD_TIMEOUT			5 	// cmd vel timeout when 5 cycle elapsed (100ms)
 
+// Conversion factor
+#define ENCODER_MAX_COUNT		65535.0f
+#define ENCODER_HALF_COUNT		(ENCODER_MAX_COUNT / 2.0f)
+#define ENCODER_HALF_ANGLE		3.141593f
+#define ENCODER_COUNT_FACTOR	(ENCODER_HALF_ANGLE / ENCODER_HALF_ANGLE)
+
+#define RPM_TO_RAD_S  	0.104778 	// 1 rpm == 0.1047 rad/s 
+#define RAD_S_TO_RPM	9.549297	// 1 rad/s ~= 0.54 RPM
+#define SINE_120 		0.866025 	// Sine(120 degree) in rad unit
+#define F2_SQRT3      	1.1547	 	// 2/sqrt(3)
 
 class irob_eth_if : public rclcpp::Node{
 	
@@ -254,6 +263,7 @@ exitMotorSearch:
 		
 		// Sensor publishers
 		rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr		pubMotorJointState;
+		sensor_msgs::msg::JointState	motorJointFeedback;
 		// Sensor subscriber
 		rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr	subMotorJointCommand;
 		
@@ -305,6 +315,11 @@ exitMotorSearch:
 				10
 			);
 		
+		motorJointFeedback.header.frame_id 	= sParameterData.sTopicName;
+		motorJointFeedback.name.push_back(sParameterData.sTopicName);
+		motorJointFeedback.position.resize(1);
+		motorJointFeedback.velocity.resize(1);
+		
 		// Create lambda callback function to subsribe to the joint command
 		auto lmbdJointCommandCallback =
 			[this, &f32MotorJointCommand](sensor_msgs::msg::JointState::UniquePtr jointMsg) -> void{
@@ -327,7 +342,7 @@ exitMotorSearch:
 			);
 			
 			if(i32RxBytes >= 4){
-				RCLCPP_INFO(
+				RCLCPP_DEBUG(
 					this->get_logger(),
 					"Received %d bytes!",
 					i32RxBytes
@@ -346,12 +361,29 @@ exitMotorSearch:
 				){
 					bCanProcessRead = false;
 				}else{
-					if(bCanProcessRead == false)
-						bCanProcessRead = true;
 					
 					// TODO : Intercept the feedback data
-					
-					
+					if(
+						(tRbcRxPacket.regBit.bType 	== eCOMMAND_CONTROL) &&
+						(tRbcRxPacket.regBit.bIndex == eCONTROL_CTRL_FEEDBACK) &&
+						(tRbcRxPacket.regBit.bRW 	== eRW_READ)
+					){
+						// Joint state in
+						// Position -> rad
+						// Velocity -> rad/s
+						motorJointFeedback.position[0] = 
+							*(float *)&tRbcRxPacket.u8InDataPtr[0] * ENCODER_COUNT_FACTOR;
+						
+						motorJointFeedback.velocity[0] = 
+							*(float *)&tRbcRxPacket.u8InDataPtr[4] * RPM_TO_RAD_S;
+							
+						motorJointFeedback.header.stamp = this->get_clock()->now();
+							
+						pubMotorJointState->publish(motorJointFeedback);
+					}else{
+						if(bCanProcessRead == false)
+							bCanProcessRead = true;
+					}
 				}
 				
 				//i32RxBytes = 0;
@@ -568,10 +600,65 @@ exitMotorSearch:
 						}
 						break;
 						
-						case ePARAM_COMMIT:
+						case eCONTROL_CTRL_LOOP_RATE:
+						{	
+							// Copy data from ROS parameter struct to the TX packet 
+							if(sParameterData.sLoopRate == "50Hz"){
+								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
+									eLOOP_RATE_50HZ;
+							}else if(sParameterData.sLoopRate == "100Hz"){
+								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
+									eLOOP_RATE_100HZ;
+							}else if(sParameterData.sLoopRate == "250Hz"){
+								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
+									eLOOP_RATE_250HZ;
+							}else if(sParameterData.sLoopRate == "500Hz"){
+								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
+									eLOOP_RATE_500HZ;
+							}else if(sParameterData.sLoopRate == "1kHz"){
+								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
+									eLOOP_RATE_1KHZ;
+							}else if(sParameterData.sLoopRate == "2kHz"){
+								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
+									eLOOP_RATE_2KHZ;
+							}else{
+								RCLCPP_WARN(
+									this->get_logger(),
+									"[%s]Warning : Unknown loop rate : %s !",
+									sParameterData.sTopicName.c_str(),
+									sParameterData.sLoopRate.c_str()
+								);
+								
+								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
+									eLOOP_RATE_50HZ;
+							}
+
+							irob_protocolSetup(
+								&tRbcTxPacket,
+								eCOMMAND_CONTROL,
+								eCONTROL_CTRL_LOOP_RATE,
+								eRW_WRITE,
+								sizeof(uint8_t)
+							);
+							
+							// Configuration finished, commit the parameter
+							u32iRobConfigFsm = eCONTROL_CTRL_ON_OFF;
+						}
+						break;
+						
+						case eCONTROL_CTRL_ON_OFF:
 						{
+							*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 1;
 							
+							irob_protocolSetup(
+								&tRbcTxPacket,
+								eCOMMAND_CONTROL,
+								eCONTROL_CTRL_ON_OFF,
+								eRW_WRITE,
+								sizeof(uint8_t)
+							);
 							
+							u32iRobConfigFsm = 127;
 						}
 						break;
 					}
@@ -596,9 +683,7 @@ exitMotorSearch:
 							// Try to reconnect 
 							u32iRobEthFsm = eIROB_STATE_INIT;
 						}
-					}
-
-					
+					}					
 				}
 				break;
 				
@@ -618,13 +703,19 @@ exitMotorSearch:
 					}
 					
 					// Check if we need to continue sending the control parameters to the iRob ETH
-					if(u32iRobConfigFsm != ePARAM_COMMIT){
+					if(u32iRobConfigFsm != 127){
 						u32iRobEthFsm = eIROB_STATE_CONFIGURE;
 						
 					}else{
 						// Reset the config fsm back to start just in case for the next re-config
 						u32iRobConfigFsm = ePARAM_CTRL_KPIDFF;
 						u32iRobEthFsm = eIROB_STATE_RUN;
+						
+						RCLCPP_INFO(
+							this->get_logger(),
+							"[%s]Configuration completed!",
+							sParameterData.sTopicName.c_str()
+						);
 					}
 					
 				}
