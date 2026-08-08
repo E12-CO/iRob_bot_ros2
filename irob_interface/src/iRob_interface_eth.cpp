@@ -380,6 +380,8 @@ exitMotorSearch:
 						motorJointFeedback.header.stamp = this->get_clock()->now();
 							
 						pubMotorJointState->publish(motorJointFeedback);
+						
+						bCanProcessRead = false;
 					}else{
 						if(bCanProcessRead == false)
 							bCanProcessRead = true;
@@ -464,6 +466,11 @@ exitMotorSearch:
 					// Check if the iRob ETH is configured
 					// 1. Check if the return packet is valid
 					if(irob_protocolReturnValidate(&tRbcTxPacket, &tRbcRxPacket)){
+						RCLCPP_INFO(
+							this->get_logger(),
+							"ParamStatus %d",
+							((tParameterStatus *)&tRbcRxPacket.u8InDataPtr[0])->u8ParamStat
+						);
 						// 2. Parse the data bit to check the parameter is not configured
 						if(((tParameterStatus *)&tRbcRxPacket.u8InDataPtr[0])->u8ParamStat != 0xFF){
 							RCLCPP_INFO(
@@ -596,29 +603,29 @@ exitMotorSearch:
 							);
 							
 							// Configuration finished, commit the parameter
-							u32iRobConfigFsm = ePARAM_COMMIT;
+							u32iRobConfigFsm = eCONTROL_CTRL_LOOP_RATE;
 						}
 						break;
 						
 						case eCONTROL_CTRL_LOOP_RATE:
 						{	
 							// Copy data from ROS parameter struct to the TX packet 
-							if(sParameterData.sLoopRate == "50Hz"){
+							if(sParameterData.sLoopRate == "50HZ"){
 								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
 									eLOOP_RATE_50HZ;
-							}else if(sParameterData.sLoopRate == "100Hz"){
+							}else if(sParameterData.sLoopRate == "100HZ"){
 								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
 									eLOOP_RATE_100HZ;
-							}else if(sParameterData.sLoopRate == "250Hz"){
+							}else if(sParameterData.sLoopRate == "250HZ"){
 								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
 									eLOOP_RATE_250HZ;
-							}else if(sParameterData.sLoopRate == "500Hz"){
+							}else if(sParameterData.sLoopRate == "500HZ"){
 								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
 									eLOOP_RATE_500HZ;
-							}else if(sParameterData.sLoopRate == "1kHz"){
+							}else if(sParameterData.sLoopRate == "1KHZ"){
 								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
 									eLOOP_RATE_1KHZ;
-							}else if(sParameterData.sLoopRate == "2kHz"){
+							}else if(sParameterData.sLoopRate == "2KHZ"){
 								*(uint8_t *)(tRbcTxPacket.u8InDataPtr + 0x00) = 
 									eLOOP_RATE_2KHZ;
 							}else{

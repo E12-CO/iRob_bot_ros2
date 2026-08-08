@@ -3,7 +3,7 @@ iRob_ETH_Interface:
         motor_0:
             topic_name :    "motor_lf"
             ip_address:     "192.168.1.16"
-            loop_rate:      "125HZ"
+            loop_rate:      "100HZ"
             speed_kp:       1.0
             speed_ki:       0.01
             speed_kd:       0.001
