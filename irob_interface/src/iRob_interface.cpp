@@ -30,7 +30,8 @@ struct termios tty;
 #include "sensor_msgs/msg/imu.hpp"
 
 // Motor messages
-#include "irob_msgs/msg/irob_motor_msg.hpp"
+// JointState for motor
+#include "sensor_msgs/msg/joint_state.hpp"
 
 // Define Feedback Loop time 
 #define LOOP_TIME_MIL   20 // 20 millisec -> 50Hz
@@ -45,6 +46,12 @@ struct termios tty;
 #define ROS_COMM_TIMEOUT		5 	// consider communication timeout when 5 cycle elapsed (100ms)
 
 #define VEL_CMD_TIMEOUT			5 	// cmd vel timeout when 5 cycle elapsed (100ms)
+
+// Math constants
+#define RPM_TO_RAD_S  	0.104778 	// 1 rpm == 0.1047 rad/s 
+#define RAD_S_TO_RPM	9.549297	// 1 rad/s ~= 0.54 RPM
+#define SINE_120 		0.866025 	// Sine(120 degree) in rad unit
+#define F2_SQRT3      	1.1547	 	// 2/sqrt(3)
 
 typedef struct __attribute__((packed)){
 	// Send by PC
@@ -130,10 +137,12 @@ class irob_rbc_if : public rclcpp::Node{
 	std::string imuTopicName;
 
 	// Motor publisher -> Send Encoder count to iRob_controller
-	rclcpp::Publisher<irob_msgs::msg::IrobMotorMsg>::SharedPtr			pubMotorRPM;
+	rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pubMotorRPM;
+	
 	// Motor subscriber -> Receive Motor command from iRob_controller
-	rclcpp::Subscription<irob_msgs::msg::IrobMotorMsg>::SharedPtr		subMotorCmd;
-
+	rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subMotorCmd;
+	
+	
 	// Used in wall timer callback
 	rclcpp::TimerBase::SharedPtr timer_;
 	
@@ -274,11 +283,11 @@ class irob_rbc_if : public rclcpp::Node{
 		
 		// Motor feedback publisher
 		pubMotorRPM =
-			create_publisher<irob_msgs::msg::IrobMotorMsg>("irob_motor_feedback", 10);
+			create_publisher<sensor_msgs::msg::JointState>("irob_motor_feedback", 10);
 			
 		// Motor cmd subscriber
 		subMotorCmd = 
-			create_subscription<irob_msgs::msg::IrobMotorMsg>(
+			create_subscription<sensor_msgs::msg::JointState>(
 				"irob_motor_cmd",
 				10,
 				std::bind(
@@ -302,11 +311,39 @@ class irob_rbc_if : public rclcpp::Node{
 		
 	}
 	
-	void irob_motorcmd_callback(const irob_msgs::msg::IrobMotorMsg::SharedPtr motor_cmd){
-		rbc_Packet_t.motorControl.motor1_ctrl = motor_cmd->motor1;
-		rbc_Packet_t.motorControl.motor2_ctrl = motor_cmd->motor2;
-		rbc_Packet_t.motorControl.motor3_ctrl = motor_cmd->motor3;
-		rbc_Packet_t.motorControl.motor4_ctrl = motor_cmd->motor4;
+	void irob_motorcmd_callback(const sensor_msgs::msg::JointState::SharedPtr motor_cmd){
+		if(
+			(motor_cmd->velocity.size() < 3) ||
+			(motor_cmd->velocity.size() > 4)
+		){
+			RCLCPP_ERROR(
+				this->get_logger(),
+				"Command error, the joint number %d is incorrect!",
+				motor_cmd->velocity.size()
+			);
+			return;
+		}
+		
+		if(motor_cmd->header.frame_id != "quad_motor"){
+			RCLCPP_ERROR(
+				this->get_logger(),
+				"The joint command is not in the frame \"quad_motor\"!"
+			);
+			return;
+		}
+		
+		// Convert rad/s to RPM and send it to the controller 
+		rbc_Packet_t.motorControl.motor1_ctrl = 
+				motor_cmd->velocity[0] * RAD_S_TO_RPM;
+		rbc_Packet_t.motorControl.motor2_ctrl = 
+				motor_cmd->velocity[1] * RAD_S_TO_RPM;
+		rbc_Packet_t.motorControl.motor3_ctrl = 
+				motor_cmd->velocity[2] * RAD_S_TO_RPM;
+		if(motor_cmd->velocity.size() == 4){
+		rbc_Packet_t.motorControl.motor4_ctrl = 
+				motor_cmd->velocity[3] * RAD_S_TO_RPM;
+		}
+		
 		cmd_vel_timeout_counter = 0;
 	}
 
@@ -423,7 +460,8 @@ class irob_rbc_if : public rclcpp::Node{
 		auto magMsg = sensor_msgs::msg::MagneticField();
 		auto imuMsg = sensor_msgs::msg::Imu();
 		
-		auto motorFBMsg = irob_msgs::msg::IrobMotorMsg();
+		auto motorFBMsg = sensor_msgs::msg::JointState();
+		motorFBMsg.velocity.resize(4);	
 		
 		nav_msgs::msg::Odometry mouseOdomMsg;
 		
@@ -436,11 +474,17 @@ class irob_rbc_if : public rclcpp::Node{
 		mouseOdomMsg.twist.twist.linear.y	= 
 			rbc_Packet_t.mouseVel.mouse_y_vel * mouse_y_const;
 		
-		// Motor RPM feedback
-		motorFBMsg.motor1 					= rbc_Packet_t.motorFeedBack.motor1_fb;
-		motorFBMsg.motor2					= rbc_Packet_t.motorFeedBack.motor2_fb;
-		motorFBMsg.motor3					= rbc_Packet_t.motorFeedBack.motor3_fb;
-		motorFBMsg.motor4 					= rbc_Packet_t.motorFeedBack.motor4_fb;
+		// Motor RPM feedback, convert RPM to rad/s for JointState
+		motorFBMsg.header.frame_id			= "quad_motor";
+		motorFBMsg.header.stamp				= mouseOdomMsg.header.stamp;
+		motorFBMsg.velocity[0] 				= 
+				rbc_Packet_t.motorFeedBack.motor1_fb * RPM_TO_RAD_S;
+		motorFBMsg.velocity[1]				= 
+				rbc_Packet_t.motorFeedBack.motor2_fb * RPM_TO_RAD_S;
+		motorFBMsg.velocity[2]				= 
+				rbc_Packet_t.motorFeedBack.motor3_fb * RPM_TO_RAD_S;
+		motorFBMsg.velocity[3] 				= 
+				rbc_Packet_t.motorFeedBack.motor4_fb * RPM_TO_RAD_S;
 		
 		// magnetometer sensor
 		magMsg.header.frame_id				= imu_frame_id;

@@ -2,15 +2,10 @@
 #define IROB_KINEMATICS_HOLONOMIC_HPP
 
 #include <stdint.h>
-
-enum IROB_HOLO_TYPE{
-	IROB_HOLO_OMNI3 = (uint8_t)0,
-	IROB_HOLO_OMNI4 = (uint8_t)1,
-	IROB_HOLO_MECA4 = (uint8_t)2
-};
+#include <string>
 
 typedef struct{
-	uint8_t irob_robot_type;
+	std::string irob_robot_type;
 	float robot_length;
 	float robot_width;
 	float robot_wheel_radius;

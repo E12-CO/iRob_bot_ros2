@@ -2,7 +2,7 @@ iRob_controller:
   ros__parameters:
     robot_frame_id: "base_link"
     odom_frame_id: "odom"
-    irob_holo_type: 2
+    irob_holo_type: irob_holonomic_plugins::Omni4
     robot_width: 0.251
     robot_length: 0.20
     wheel_radius: 0.05

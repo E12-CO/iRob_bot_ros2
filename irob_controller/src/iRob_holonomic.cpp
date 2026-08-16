@@ -26,7 +26,7 @@ namespace irob_holonomic_plugins{
 				}
 
 				if(irob_param_ptr_t->irob_robot_type != 
-					IROB_HOLO_OMNI3){
+					"irob_holonomic_plugins::Omni3"){
 					// Return error on wrong holonomic type
 					return -1;
 				}
@@ -61,9 +61,9 @@ namespace irob_holonomic_plugins{
 				wheel_vel_t *wheel_ptr_t	// Input Wheel RPM measurement
 				) override{
 				
-				wheel_ptr_t->v1 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LF
-				wheel_ptr_t->v2 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LB
-				wheel_ptr_t->v3 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RB
+				wheel_ptr_t->v1 *= 1 / irob_param_t.robot_gear_ratio;// LF
+				wheel_ptr_t->v2 *= 1 / irob_param_t.robot_gear_ratio;// LB
+				wheel_ptr_t->v3 *= 1 / irob_param_t.robot_gear_ratio;// RB
 				
 				cmd_ptr_t->vel_x =
 					(wheel_ptr_t->v2 - wheel_ptr_t->v3) *
@@ -117,9 +117,9 @@ namespace irob_holonomic_plugins{
 					) / irob_param_t.robot_wheel_radius
 				;
 			
-				wheel_ptr_t->v1 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v2 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v3 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v1 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v2 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v3 *= 1 * irob_param_t.robot_gear_ratio;
 			}
 			
 		protected:
@@ -139,7 +139,7 @@ namespace irob_holonomic_plugins{
 				}
 
 				if(irob_param_ptr_t->irob_robot_type != 
-					IROB_HOLO_OMNI4){
+					"irob_holonomic_plugins::Omni4"){
 					// Return error on wrong holonomic type
 					return -1;
 				}
@@ -173,10 +173,10 @@ namespace irob_holonomic_plugins{
 				wheel_vel_t *wheel_ptr_t	// Input Wheel RPM measurement
 				) override{
 				
-				wheel_ptr_t->v1 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LF
-				wheel_ptr_t->v2 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LB
-				wheel_ptr_t->v3 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RB
-				wheel_ptr_t->v4 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RF
+				wheel_ptr_t->v1 *= 1 / irob_param_t.robot_gear_ratio;// LF
+				wheel_ptr_t->v2 *= 1 / irob_param_t.robot_gear_ratio;// LB
+				wheel_ptr_t->v3 *= -1 / irob_param_t.robot_gear_ratio;// RB
+				wheel_ptr_t->v4 *= -1 / irob_param_t.robot_gear_ratio;// RF
 				
 				cmd_ptr_t->vel_x =
 					(	wheel_ptr_t->v1 +	
@@ -245,10 +245,10 @@ namespace irob_holonomic_plugins{
 					) / irob_param_t.robot_wheel_radius
 				;
 				
-				wheel_ptr_t->v1 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v2 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v3 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v4 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v1 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v2 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v3 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v4 *= 1 * irob_param_t.robot_gear_ratio;
 			}
 		
 		protected:
@@ -267,7 +267,7 @@ namespace irob_holonomic_plugins{
 				}
 
 				if(irob_param_ptr_t->irob_robot_type != 
-					IROB_HOLO_MECA4){
+					"irob_holonomic_plugins::Meca4"){
 					// Return error on wrong holonomic type
 					return -1;
 				}
@@ -312,10 +312,10 @@ namespace irob_holonomic_plugins{
 				wheel_vel_t *wheel_ptr_t	// Input Wheel RPM measurement
 				) override{
 				
-				wheel_ptr_t->v1 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LF
-				wheel_ptr_t->v2 *= RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// LB
-				wheel_ptr_t->v3 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RB
-				wheel_ptr_t->v4 *= -RPM_TO_RAD_S / irob_param_t.robot_gear_ratio;// RF
+				wheel_ptr_t->v1 *= 1 / irob_param_t.robot_gear_ratio;// LF
+				wheel_ptr_t->v2 *= 1 / irob_param_t.robot_gear_ratio;// LB
+				wheel_ptr_t->v3 *= -1 / irob_param_t.robot_gear_ratio;// RB
+				wheel_ptr_t->v4 *= -1 / irob_param_t.robot_gear_ratio;// RF
 				
 				cmd_ptr_t->vel_x =
 					(	wheel_ptr_t->v1 +	
@@ -384,10 +384,10 @@ namespace irob_holonomic_plugins{
 					) / irob_param_t.robot_wheel_radius
 				;
 				
-				wheel_ptr_t->v1 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v2 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v3 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
-				wheel_ptr_t->v4 *= RAD_S_TO_RPM * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v1 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v2 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v4 *= 1 * irob_param_t.robot_gear_ratio;
+				wheel_ptr_t->v3 *= 1 * irob_param_t.robot_gear_ratio;
 			}
 		
 		
