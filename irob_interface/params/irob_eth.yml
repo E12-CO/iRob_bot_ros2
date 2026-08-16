@@ -1,15 +1,64 @@
 iRob_ETH_Interface:
     ros__parameters:
-        motor_0:
+        # motor_X where 'X' is the motor instant number
+        # Valid from 0 to 31
+    
+        motor_0: # Left-front motor
             topic_name :    "motor_lf"
             ip_address:     "192.168.1.16"
+            wheel_id:       0
             loop_rate:      "100HZ"
             speed_kp:       1.0
             speed_ki:       0.01
             speed_kd:       0.001
             speed_kff:      5.0
-            speed_min:      1.0
+            speed_min:      -5000.0
             speed_max:      5000.0
             encoder_cpr:    28
             gear_ratio:     1.0
-        
+            
+            
+        motor_1: # Left-back motor
+            topic_name :    "motor_lb"
+            ip_address:     "192.168.1.17"
+            wheel_id:       1
+            loop_rate:      "100HZ"
+            speed_kp:       1.0
+            speed_ki:       0.01
+            speed_kd:       0.001
+            speed_kff:      5.0
+            speed_min:      -5000.0
+            speed_max:      5000.0
+            encoder_cpr:    28
+            gear_ratio:     1.0
+            
+            
+        motor_2: # Right-back motor
+            topic_name :    "motor_rb"
+            ip_address:     "192.168.1.18"
+            wheel_id:       2
+            loop_rate:      "100HZ"
+            speed_kp:       1.0
+            speed_ki:       0.01
+            speed_kd:       0.001
+            speed_kff:      5.0
+            speed_min:      -5000.0
+            speed_max:      5000.0
+            encoder_cpr:    28
+            gear_ratio:     1.0
+            
+            
+        motor_3: # Right-front motor
+            topic_name :    "motor_rf"
+            ip_address:     "192.168.1.19"
+            wheel_id:       3
+            loop_rate:      "100HZ"
+            speed_kp:       1.0
+            speed_ki:       0.01
+            speed_kd:       0.001
+            speed_kff:      5.0
+            speed_min:      -5000.0
+            speed_max:      5000.0
+            encoder_cpr:    28
+            gear_ratio:     1.0
+            
