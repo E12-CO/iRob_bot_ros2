@@ -54,6 +54,7 @@ The motor/wheel order is counting couter-clockwise. +x axis is the front side of
 	- ```irob_holonomic_plugins::Omni4``` for 4 wheels Omni robot.
 	- ```irob_holonomic_plugins::Meca4``` for 4 wheels Mecanum robot.
 - ```robot_length``` and ```robot_width``` depends on the type of the drive train. **Using meter (m) unit*.
+
 | **Drive Train type**          | ```robot_length```                           | ```robot_width```                            |
 |-------------------------------|----------------------------------------------|----------------------------------------------|
 | irob_holonomic_plugins::Omni3 | Wheel center to Robot center distance        | unused                                       |
