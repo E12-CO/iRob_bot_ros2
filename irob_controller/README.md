@@ -37,7 +37,7 @@ The motor/wheel order is counting couter-clockwise. +x axis is the front side of
     | /    \ |              Cen -> robot center
    \m1 ----- m2/
 ```
-### 4 Wheels Mecanum. Top veiw sould see the wheels making the X symbol 
+### 4 Wheels Mecanum. Top veiw should see the wheels making the X symbol on real robot
 ```
     Top View        +x      m0 -> motor 0 (motor_lf, left front)
    \m0 ----- m3/     ^      m1 -> motor 1 (motor_lb, left back)
