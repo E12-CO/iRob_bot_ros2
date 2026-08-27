@@ -641,24 +641,24 @@ exitMotorSearch:
 						if(((tParameterStatus *)&tRbcRxPacket.u8InDataPtr[0])->u8ParamStat != 0xFF){
 							RCLCPP_INFO(
 								this->get_logger(),
-								"[%s]iRob ETH of %s is not configured, configuring it now...",
+								"[%s]iRob ETH of %s is not configured, configure it now...",
 								sParameterData.sTopicName.c_str(),
 								sParameterData.sTopicName.c_str()
 							);
 							
-							// Need configuration, jump to the configure state
-							u32iRobEthFsm = eIROB_STATE_CONFIGURE;
+
 						}else{
 							RCLCPP_INFO(
 								this->get_logger(),
-								"[%s]iRob ETH of %s is configured, skipping configuration process...",
+								"[%s]iRob ETH of %s is configured, reconfigure it anyway",
 								sParameterData.sTopicName.c_str(),
 								sParameterData.sTopicName.c_str()
 							);
 							
-							// No need for configuration, just jump to run state
-							u32iRobEthFsm = eIROB_STATE_RUN;
 						}
+
+						//jump to the configure state
+						u32iRobEthFsm = eIROB_STATE_CONFIGURE;
 						
 					}else{
 						RCLCPP_ERROR(
