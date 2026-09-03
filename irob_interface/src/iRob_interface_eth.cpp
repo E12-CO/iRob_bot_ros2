@@ -431,6 +431,7 @@ exitMotorSearch:
 		
 		// FSM 
 		unsigned int u32iRobEthFsm = eIROB_STATE_INIT;
+		unsigned int u32iRobEthFsmRejmp = eIROB_STATE_INIT;
 		unsigned int u32iRobConfigFsm = ePARAM_CTRL_KPIDFF;
 		
 		
@@ -577,6 +578,7 @@ exitMotorSearch:
 					u32iRobConfigFsm = ePARAM_CTRL_KPIDFF;
 					
 					u32iRobEthFsm = eIROB_STATE_W8CONNECT;
+					u32iRobEthFsmRejmp = eIROB_STATE_W8CONNECT;
 				}				
 				break;	
 					
@@ -618,13 +620,24 @@ exitMotorSearch:
 						}
 					}
 					
+					// Timestamping the tick
+					tControlTick = this->get_clock()->now();
+					
 				}
 				break;
 				
 				case eIROB_STATE_QUERY: // Query the configuration status of the control parameters (KPIDFF, MinMax, Encoder CPR and Gear ratio) 
 				{
-					if(bCanProcessRead == false)
-						break;
+					if(
+						(this->get_clock()->now() - tControlTick)
+						> dControlSendDuration 
+					){
+						u32iRobEthFsm = eIROB_STATE_W8CONNECT;
+							break;
+					}else{
+						if(bCanProcessRead == false)
+							break;
+					}
 					
 					bCanProcessRead = false;// Clear the can read flag
 					
@@ -633,7 +646,7 @@ exitMotorSearch:
 					if(irob_protocolReturnValidate(&tRbcTxPacket, &tRbcRxPacket)){
 						RCLCPP_INFO(
 							this->get_logger(),
-							"[%s]ParamStatus %d",
+							"[%s]ParamStatus 0x%X",
 							sParameterData.sTopicName.c_str(),
 							((tParameterStatus *)&tRbcRxPacket.u8InDataPtr[0])->u8ParamStat
 						);
@@ -885,8 +898,8 @@ exitMotorSearch:
 						// Reset the config fsm back to start just in case for the next re-config
 						u32iRobConfigFsm = ePARAM_CTRL_KPIDFF;
 						
-						// Jump back to wait connection state to rerun the parameter check
-						u32iRobEthFsm = eIROB_STATE_W8CONNECT;
+						// Jump to run state
+						u32iRobEthFsm = eIROB_STATE_RUN;
 						
 						RCLCPP_INFO(
 							this->get_logger(),
