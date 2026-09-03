@@ -8,38 +8,48 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Wpedantic -g")
 find_package(ament_cmake_ros REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(pluginlib REQUIRED)
-find_package(rviz_common REQUIRED)
 
 # iRob packages
 find_package(irob_msgs REQUIRED)
 
-set(CMAKE_AUTOMOC ON)
-qt5_wrap_cpp(MOC_FILES
-  include/irob_trajectory_maker/irob_trajectory_maker_panel.hpp
-)
+# Check for rViz package and will ignore the front panel if rViz not found
+find_package(rviz_common)
+if(rviz_common_FOUND)
+	message("found rViz package, building the front panel plugin...")
+	
+	set(CMAKE_AUTOMOC ON)
+	qt5_wrap_cpp(MOC_FILES
+	  include/irob_trajectory_maker/irob_trajectory_maker_panel.hpp
+	)
 
-add_library(trajectory_panel src/irob_trajectory_maker_panel.cpp ${MOC_FILES})
-target_include_directories(trajectory_panel PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-ament_target_dependencies(trajectory_panel
-  pluginlib
-  rviz_common
-  irob_msgs
-)
-install(TARGETS trajectory_panel
-        EXPORT export_irob_trajectory_maker
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        RUNTIME DESTINATION bin
-)
-install(DIRECTORY include/
-        DESTINATION include
-)
-install(FILES rviz_common_plugins.xml
-        DESTINATION share/${PROJECT_NAME}
-)
+	add_library(trajectory_panel src/irob_trajectory_maker_panel.cpp ${MOC_FILES})
+	target_include_directories(trajectory_panel PUBLIC
+	  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+	  $<INSTALL_INTERFACE:include>
+	)
+	ament_target_dependencies(trajectory_panel
+	  pluginlib
+	  rviz_common
+	  irob_msgs
+	)
+	install(TARGETS trajectory_panel
+			EXPORT export_irob_trajectory_maker
+			ARCHIVE DESTINATION lib
+			LIBRARY DESTINATION lib
+			RUNTIME DESTINATION bin
+	)
+	install(DIRECTORY include/
+			DESTINATION include
+	)
+	install(FILES rviz_common_plugins.xml
+			DESTINATION share/${PROJECT_NAME}
+	)
+
+	ament_export_include_directories(include)
+	ament_export_targets(export_irob_trajectory_maker)
+	pluginlib_export_plugin_description_file(rviz_common rviz_common_plugins.xml)
+
+endif()
 
 # Install python scripts
 ament_python_install_package(${PROJECT_NAME})
@@ -54,8 +64,6 @@ install(
   DESTINATION "share/${PROJECT_NAME}"
 )
 
-ament_export_include_directories(include)
-ament_export_targets(export_irob_trajectory_maker)
-pluginlib_export_plugin_description_file(rviz_common rviz_common_plugins.xml)
+
 
 ament_package()
