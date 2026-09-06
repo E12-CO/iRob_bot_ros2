@@ -20,9 +20,17 @@ Both node supported namespace.
 
 ## Parameter .yaml configurations
 - ```serial_port``` is to select the usb serial file for example ```/dev/ttyUSB0``` and ```/dev/ttyACM0```. To make sure that the serial port is stay consistent. Use **udev rule** to set up the fixed device name, for example ```/dev/ESP32```.
+- ```robot_frame_id``` is the robot frame name according to the URDF. By default is ```base_link```.
+- ```mouse_odom_frame_id``` is unsed, originally left there for the optical mouse sensor.
+- ```imu_frame_id``` is the frame name of IMU according to the URDF. The subscriber such as Cartographer need this frame name in order to lookup for the coordiate transform of where the IMU sensor is mounted on the robot.
+- ```mag_sensor_topic``` is the topic name of the 3 DoF manetometer sensor. Default is ```imu/mag```. By default we don't use magnetometer due to it sensitivity to hard and soft iron interference. It provide next to no benefit with paring with IMU+Lidar or IMU+dead wheel.
+- ```imu_sensor_topic``` is the topic name of the 6 DoF IMU sensor. Default is ```imu/data_raw```.
+- ```mouse_x_constant``` and ```mouse_y_constant``` is unused, originally used to convert the optical mouse sensor reading to m/s velocity measurement.
+- ```gyro_constant``` is a conversion factor from the raw gyro LSB reading to rad/s unit.
+- ```mag_constant``` is a conversion factor from the raw magneto LSB reading to tesla.
+- ```accel_constant``` is a conversion factor from the raw accelerometer LSB reading to m/s^2
 
-## Stable ESP32 serial path
-
+## Udev rule setup
 Install the included rule to create the stable `/dev/ESP32` path for the ESP32's
 CP210x USB serial adapter:
 
@@ -34,15 +42,6 @@ sudo udevadm trigger
 
 Unplug and reconnect the ESP32, then verify it with `ls -l /dev/ESP32`. The
 current interface parameter file uses `/dev/ESP32`.
-- ```robot_frame_id``` is the robot frame name according to the URDF. By default is ```base_link```.
-- ```mouse_odom_frame_id``` is unsed, originally left there for the optical mouse sensor.
-- ```imu_frame_id``` is the frame name of IMU according to the URDF. The subscriber such as Cartographer need this frame name in order to lookup for the coordiate transform of where the IMU sensor is mounted on the robot.
-- ```mag_sensor_topic``` is the topic name of the 3 DoF manetometer sensor. Default is ```imu/mag```. By default we don't use magnetometer due to it sensitivity to hard and soft iron interference. It provide next to no benefit with paring with IMU+Lidar or IMU+dead wheel.
-- ```imu_sensor_topic``` is the topic name of the 6 DoF IMU sensor. Default is ```imu/data_raw```.
-- ```mouse_x_constant``` and ```mouse_y_constant``` is unused, originally used to convert the optical mouse sensor reading to m/s velocity measurement.
-- ```gyro_constant``` is a conversion factor from the raw gyro LSB reading to rad/s unit.
-- ```mag_constant``` is a conversion factor from the raw magneto LSB reading to tesla.
-- ```accel_constant``` is a conversion factor from the raw accelerometer LSB reading to m/s^2
 
 # ```iRob_interface_eth``` node
 ## Related ROS topics
