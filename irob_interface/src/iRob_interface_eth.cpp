@@ -328,7 +328,7 @@ exitMotorSearch:
 		
 		// Convert rad/s to RPM and send it to the controller 
 		for(size_t i=0; i <  motor_cmd->velocity.size(); i++)
-			velocity_cmd[0].store(motor_cmd->velocity[i] * RAD_S_TO_RPM);
+			velocity_cmd[i].store(motor_cmd->velocity[i] * RAD_S_TO_RPM);
 		
 				
 		cmd_vel_timeout_counter = 0;
