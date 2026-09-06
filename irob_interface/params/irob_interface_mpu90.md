@@ -26,8 +26,7 @@ The fixed name stays the same:
 From the ROS workspace root:
 
 ```bash
-cd ~/ROS_iROB_V0
-sudo cp src/iRob_bot_ros2/irob_controller/esp32.rules /etc/udev/rules.d/99-esp32.rules
+sudo cp irob_controller/esp32.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
