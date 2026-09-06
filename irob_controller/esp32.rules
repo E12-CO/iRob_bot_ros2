@@ -1,0 +1,3 @@
+# iRob ESP32 USB serial adapter (Silicon Labs CP210x).
+# Creates /dev/ESP32 when the adapter appears as /dev/ttyUSB<n>.
+SUBSYSTEM=="tty", KERNEL=="ttyUSB[0-9]*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="ESP32", GROUP="dialout", MODE="0660"

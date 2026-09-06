@@ -20,6 +20,20 @@ Both node supported namespace.
 
 ## Parameter .yaml configurations
 - ```serial_port``` is to select the usb serial file for example ```/dev/ttyUSB0``` and ```/dev/ttyACM0```. To make sure that the serial port is stay consistent. Use **udev rule** to set up the fixed device name, for example ```/dev/ESP32```.
+
+## Stable ESP32 serial path
+
+Install the included rule to create the stable `/dev/ESP32` path for the ESP32's
+CP210x USB serial adapter:
+
+```bash
+sudo cp src/iRob_bot_ros2/irob_controller/esp32.rules /etc/udev/rules.d/99-esp32.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+Unplug and reconnect the ESP32, then verify it with `ls -l /dev/ESP32`. The
+current interface parameter file uses `/dev/ESP32`.
 - ```robot_frame_id``` is the robot frame name according to the URDF. By default is ```base_link```.
 - ```mouse_odom_frame_id``` is unsed, originally left there for the optical mouse sensor.
 - ```imu_frame_id``` is the frame name of IMU according to the URDF. The subscriber such as Cartographer need this frame name in order to lookup for the coordiate transform of where the IMU sensor is mounted on the robot.

@@ -209,11 +209,12 @@ class irob_rbc_if : public rclcpp::Node{
 		strcpy(serial_port_file, serial_port_.c_str());
 		serial_port = open(serial_port_file, O_RDWR);
 		// Can't open serial port
-		if(serial_port < -1){
+		if(serial_port < 0){
 			RCLCPP_ERROR(
 				this->get_logger(), 
-				"Error openning Serial %s", 
-				serial_port_.c_str()
+				"Error opening serial port %s: %s", 
+				serial_port_.c_str(),
+				strerror(errno)
 				);
 			std::raise(SIGTERM);
 			return;
@@ -254,9 +255,9 @@ class irob_rbc_if : public rclcpp::Node{
 		tty.c_cc[VTIME] = 10;    // Wait for up to 1s (10 deciseconds), returning as soon as any data is received.
 		tty.c_cc[VMIN] = 0;
 
-		// Set in/out baud rate to be 230400
-		cfsetispeed(&tty, B230400);
-		cfsetospeed(&tty, B230400);
+		// Match the ESP32 firmware's reliable serial rate.
+		cfsetispeed(&tty, B115200);
+		cfsetospeed(&tty, B115200);
 		
 		if (tcsetattr(serial_port, TCSANOW, &tty) != 0) {
 			RCLCPP_ERROR(
