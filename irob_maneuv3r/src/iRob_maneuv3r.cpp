@@ -175,7 +175,7 @@ class irob_rbc_maneuv3r : public rclcpp::Node{
 		tf_listener_ =
 			std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 		
-		pubMotion = create_publisher<geometry_msgs::msg::Twist>("cmd_vel_irob_auto", 10);
+		pubMotion = create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
 		
 		pubiRobStat = create_publisher<irob_msgs::msg::IrobCmdMsg>("irob_stat", 10);
 		
