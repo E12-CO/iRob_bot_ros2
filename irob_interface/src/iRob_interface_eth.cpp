@@ -480,7 +480,7 @@ exitMotorSearch:
 		// Create lambda callback function to subsribe to the joint command
 		auto lmbdJointCommandCallback =
 			[this, &f32MotorJointCommand](sensor_msgs::msg::JointState::UniquePtr jointMsg) -> void{
-				f32MotorJointCommand = jointMsg->velocity[0];
+				f32MotorJointCommand = jointMsg->velocity[0] * RAD_S_TO_RPM;
 			};
 		
 		subMotorJointCommand = 
