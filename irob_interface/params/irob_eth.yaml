@@ -9,11 +9,11 @@ iRob_ETH_Interface:
             wheel_id:       0
             loop_rate:      "100HZ"
             speed_kp:       0.01
-            speed_ki:       0.01
+            speed_ki:       0.00
             speed_kd:       0.000
             speed_kff:      0.153
-            speed_min:      -20000.0
-            speed_max:      20000.0
+            speed_min:      -25000.0
+            speed_max:      25000.0
             encoder_cpr:    28
             gear_ratio:     1.0
             
@@ -24,11 +24,11 @@ iRob_ETH_Interface:
             wheel_id:       1
             loop_rate:      "100HZ"
             speed_kp:       0.01
-            speed_ki:       0.01
+            speed_ki:       0.00
             speed_kd:       0.000
             speed_kff:      0.153
-            speed_min:      -20000.0
-            speed_max:      20000.0
+            speed_min:      -25000.0
+            speed_max:      25000.0
             encoder_cpr:    28
             gear_ratio:     1.0
             
@@ -39,11 +39,11 @@ iRob_ETH_Interface:
             wheel_id:       2
             loop_rate:      "100HZ"
             speed_kp:       0.01
-            speed_ki:       0.01
+            speed_ki:       0.00
             speed_kd:       0.000
             speed_kff:      0.153
-            speed_min:      -20000.0
-            speed_max:      20000.0
+            speed_min:      -25000.0
+            speed_max:      25000.0
             encoder_cpr:    28
             gear_ratio:     1.0
             
@@ -54,11 +54,11 @@ iRob_ETH_Interface:
             wheel_id:       3
             loop_rate:      "100HZ"
             speed_kp:       0.01
-            speed_ki:       0.01
+            speed_ki:       0.00
             speed_kd:       0.000
             speed_kff:      0.153
-            speed_min:      -20000.0
-            speed_max:      20000.0
+            speed_min:      -25000.0
+            speed_max:      25000.0
             encoder_cpr:    28
             gear_ratio:     1.0
             
