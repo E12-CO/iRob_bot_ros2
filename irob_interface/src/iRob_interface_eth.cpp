@@ -338,7 +338,7 @@ exitMotorSearch:
 	void irob_feedback_runner(void){
 		irobJointFeedback.header.stamp = this->get_clock()->now();
 		
-		for(size_t i = 0; i < i32MaxScannedWheelId; i++){
+		for(size_t i = 0; i < i32MaxScannedWheelId+1; i++){
 		irobJointFeedback.velocity[i] = 
 			velocity_feedback[i].load(std::memory_order_relaxed);
 		}
