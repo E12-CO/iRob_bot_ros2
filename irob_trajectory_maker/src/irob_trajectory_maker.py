@@ -21,13 +21,26 @@ import os, sys, select
 class PathInterpolator(Node):
     def __init__(self):
         super().__init__('iRob_trajectory_maker')
+        # Publish the interpolated and smooth path for visualization on rViz
         self.linearPreviewPub_  = self.create_publisher(Path, 'interpolated_path', 10)
         self.smoothPreviewPub_  = self.create_publisher(Path, 'smooth_path', 10)
+        
+        # Publish the actual path message for iRob maneuv3r
         self.smoothPathPub_     = self.create_publisher(Path, 'path', 10) 
-        self.subscription_ = self.create_subscription(
+        
+        # Subscribe to /goal_pose topic published by the rViz
+        self.poseSubscription_ = self.create_subscription(
             PoseStamped,
             '/goal_pose',
             self.pose_callback,
+            10
+        )
+        
+        # Subscribe to poses topic published by the planner node
+        self.pathsSubscription_ = self.create_subscription(
+            Path,
+            'poses',
+            self.poses_callback,
             10
         )
         
@@ -47,6 +60,8 @@ class PathInterpolator(Node):
         self.linearPath_msg = Path()
         self.smoothPath_msg = Path()
         self.linearPath_msg.header.frame_id = 'map'
+        
+        # Create an instant for CCMA path smoother
         self.ccma = CCMA(w_ma=300, w_cc=3)
 
         self.poseNumeber = 0
@@ -128,6 +143,8 @@ class PathInterpolator(Node):
     """
     ROS callback handlers
     """
+    
+    # Pose point callback (pose from rViz)
     def pose_callback(self, msg):
         """
         Callback function for processing incoming PoseStamped messages.
@@ -137,6 +154,24 @@ class PathInterpolator(Node):
         self.poseArray.poses.append(msg)
         self.pose_interpolatePoints()
 
+    # Poses (waypoints) callback (from behavior tree)
+    def poses_callback(self, msg):
+        """
+        Callback function for loading waypoints poses in one go with Path message
+        """
+        self.get_logger().info('Received Waypoints')
+        if len(msg.poses) < 2:
+            self.get_logge().error('Recieved waypoint less than two points!')
+            return
+            
+        # Copy poses to internal poses    
+        self.poseArray.poses = msg.poses    
+        # Update the interpolated poses
+        self.pose_interpolatePoints()
+        # Publish smooth path to iRob_maneuv3r_tracker
+        self.smoothPathPub_.publish(self.smoothPath_msg)
+
+    # Panel command callback (from rViz)
     def panel_callback(self, panelMsg):
         self.get_logger().debug('Received command from panel')
         
@@ -186,18 +221,21 @@ class PathInterpolator(Node):
     """
     Path interpolator and smoother
     """
+    # Interpolate the straigh line 
     def interpolate_points(self, start, end, num_points):
         x_values = np.linspace(start[0], end[0], num_points + 2)
         y_values = np.linspace(start[1], end[1], num_points + 2)
         yaw_values = np.linspace(start[2], end[2], num_points + 2)
         return [(x, y, yaw) for x, y, yaw in zip(x_values, y_values, yaw_values)]
 
+    # Publish the preview linear and smooth path topics
     def pose_publishPreview(self):
         self.linearPath_msg.header.stamp = self.get_clock().now().to_msg()
         self.smoothPath_msg.header.stamp = self.linearPath_msg.header.stamp
         self.linearPreviewPub_.publish(self.linearPath_msg)
         self.smoothPreviewPub_.publish(self.smoothPath_msg)
         
+    # Interpolate and connect each waypoints   
     def pose_interpolatePoints(self):
         if len(self.poseArray.poses) < 2:
             self.linearPath_msg.poses.clear()
@@ -258,6 +296,7 @@ class PathInterpolator(Node):
         # Update the smooth path
         self.pose_generateSmoothPath()
     
+    # Smooth the path between waypoints
     def pose_generateSmoothPath(self):
         x_list = []
         y_list = []
@@ -306,6 +345,7 @@ class PathInterpolator(Node):
         # Publish the updated review path
         self.pose_publishPreview()
 
+    # Timer callback to update status to front end panel
     def timer_callback(self):
         # Status report back to front end panel
         
